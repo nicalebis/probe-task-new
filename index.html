@@ -2035,16 +2035,17 @@ function scheduleNextProbe(jitterMs){
   cancelNextProbe();
   if (ended) return;
 
+	// COMMENTED OUT FOR SAFEGUARD
     // Defensive guard: make sure metadata really loaded
-  if (!vid || vid.readyState < 1) {
+  // if (!vid || vid.readyState < 1) {
     // video element not yet ready — try again shortly
-  setTimeout(() => scheduleNextProbe(jitterMs), 100);
-  return;
-  }
+  // if (!ended && vid && !vid.ended) {   setTimeout(() => scheduleNextProbe(jitterMs), 100); } return;;
+  // return;
+  // }
 	
 	// Wait for video metadata if needed
   if (!isFinite(vid.duration) || vid.duration <= 0) {
-  setTimeout(() => scheduleNextProbe(jitterMs), 100);
+  if (!ended && vid && !vid.ended) {   setTimeout(() => scheduleNextProbe(jitterMs), 100); } return;;
   return;
   }
 
