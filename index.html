@@ -2035,6 +2035,12 @@ function scheduleNextProbe(jitterMs){
   cancelNextProbe();
   if (ended) return;
 
+	// Wait for video metadata if needed
+  if (!isFinite(vid.duration) || vid.duration <= 0) {
+  setTimeout(() => scheduleNextProbe(jitterMs), 100);
+  return;
+  }
+
   const d = (typeof jitterMs === 'number') ? jitterMs : randInt(minSOA, maxSOA);
   let remain = msVideoTotal() - msVideo();
 
@@ -2241,6 +2247,23 @@ async function startTrialAfterFirstFrame(){
   window.addEventListener('resize', resizeCanvasToVideo);
   await waitForFirstFrame(vid);
   trialStartPerf = performance.now();
+
+  probe = null;
+  nextTimer = null;
+  ended = false;
+  events = [];
+  minSOA = trial.min_soa;
+  maxSOA = trial.max_soa;
+	
+  // === RESET STATE HERE ===
+  probe = null;
+  nextTimer = null;
+  ended = false;
+  events.length = 0;
+  minSOA = trial.min_soa;
+  maxSOA = trial.max_soa;
+  // =========================
+	
   started = true;
   attach();
   setTimeout(() => scheduleNextProbe(), 150); // tiny guard to avoid probe on frame 1
