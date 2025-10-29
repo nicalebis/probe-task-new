@@ -2035,6 +2035,13 @@ function scheduleNextProbe(jitterMs){
   cancelNextProbe();
   if (ended) return;
 
+    // Defensive guard: make sure metadata really loaded
+  if (!vid || vid.readyState < 1) {
+    // video element not yet ready — try again shortly
+  setTimeout(() => scheduleNextProbe(jitterMs), 100);
+  return;
+  }
+	
 	// Wait for video metadata if needed
   if (!isFinite(vid.duration) || vid.duration <= 0) {
   setTimeout(() => scheduleNextProbe(jitterMs), 100);
@@ -2053,13 +2060,15 @@ function scheduleNextProbe(jitterMs){
   const delay = Math.min(d, remain - MIN_ONSCREEN_MS);
 
   if (delay < MIN_ONSCREEN_MS) {
-    // very near end: flash one more probe immediately
-    showProbe();
-    return;
+  // very near end: flash one more probe immediately
+  try { showProbe(); } catch(e) { console.warn('Probe draw skipped:', e); }
+  return;
   }
 
   nextTimer = setTimeout(() => {
-    if (!ended) showProbe();
+  if (!ended) {
+    try { showProbe(); } catch(e) { console.warn('Probe draw skipped:', e); }
+  }
   }, delay);
 }
 
