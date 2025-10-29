@@ -2203,7 +2203,17 @@ const endTrial = () => {
     ? Math.round(vid.duration * 1000)
     : Math.round(msNow() - trialStartPerf);
 
-  const trial_data = {
+  // ---- Summarize responses for this clip ----
+	const hits = events.filter(ev => ev.type === 'hit').length;
+	const misses = events.filter(ev => ev.type === 'miss' || ev.type === 'miss_end').length;
+	const falseAlarms = events.filter(ev => ev.type === 'false_alarm').length;
+
+	const rts = events
+ 	 .filter(ev => ev.type === 'hit' && Number.isFinite(ev.rt_ms))
+ 	 .map(ev => ev.rt_ms);
+	const meanRT = rts.length ? Math.round(rts.reduce((a,b)=>a+b,0)/rts.length) : null;
+
+	const trial_data = {
     plugin: 'video-probe-detect',
     video_src: trial.stimulus?.[0] || '',
     data_tag: trial.data_tag || '',
@@ -2212,6 +2222,12 @@ const endTrial = () => {
     overlay_height: overlay.height,
     bounds: trial.bounds,
     minSOA, maxSOA, sizesPx, px_per_mm,
+	// ---- new summary fields ----
+  		hits,
+  		misses,
+  		false_alarms: falseAlarms,
+  		mean_rt_ms: meanRT,
+  // full event log
     events
   };
   display_element.innerHTML = '';
