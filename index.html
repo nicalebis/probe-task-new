@@ -2051,6 +2051,11 @@ function scheduleNextProbe(jitterMs){
   const d = (typeof jitterMs === 'number') ? jitterMs : randInt(minSOA, maxSOA);
   let remain = msVideoTotal() - msVideo();
 
+  if (!vid || vid.readyState < 1) {
+  console.warn("Skipping probe: video not ready");
+  return;
+  }
+
   if (!isFinite(remain) || remain <= 0) {
     // duration not ready or video basically done
     return;
