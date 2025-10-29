@@ -2269,7 +2269,7 @@ started = false;
 events.length = 0;
 
 window.removeEventListener('keydown', onKeydown);
-window.addEventListener('keydown', onKeydown);
+setTimeout(() => window.addEventListener('keydown', onKeydown), 0);
 
 started = true;
 attach();
