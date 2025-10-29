@@ -1,0 +1,2677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>jsPsych — Video + Canvas Probe Detection (calibration, countdown, surveys, downloads)</title>
+
+  <!-- jsPsych core + CSS + official plugins (unpkg) -->
+  <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css" />
+  <script src="https://unpkg.com/jspsych@7.3.4"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-preload@1.1.3"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-fullscreen@2.1.0"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-survey-likert@1.1.3"></script>
+
+  <style>
+    body { background:#0b0d12; }
+    body.fullblack { background:#000 !important; }
+    .jspsych-content { max-width: 100vw; }
+    .trial-wrap { 
+      position: relative; 
+      display: flex;              /* instead of block */
+      justify-content: center;    /* horizontal centering */
+      align-items: center;        /* vertical centering */
+      width: 100vw; 
+      height: 100vh; 
+      margin: 0 auto; 
+    }
+    /* Responsive video: keep aspect, cap at 960x540, shrink on small screens */
+    .video-shell { position: relative; width: 100vw; height: 100vh; margin: 0 auto; }
+    video { position:absolute; inset:0; width:100%; height:100%; background:#000; object-fit: contain; }
+    canvas.overlay { position:absolute; inset:0; pointer-events:none; width:100%; height:100%; }
+    .hud { color:#cbd5e1; font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin-top:8px; opacity:.8 }
+    .hud kbd { background:#1f2937; padding:2px 6px; border-radius:4px; border:1px solid #111; }
+
+    /* Calibration UI */
+    .calib-wrap { width:100%; height:100vh; background:#000; display:flex; align-items:center; justify-content:center; }
+    .calib-card { position:relative; background:rgba(59,130,246,0.15); border:2px dashed #60a5fa; height:54mm; /* credit card height ~ 53.98mm */ }
+    .calib-handle { position:absolute; top:0; right:-12px; width:12px; height:100%; cursor:ew-resize; background:rgba(96,165,250,.6); }
+    .calib-label { position:absolute; bottom:-40px; left:0; right:0; color:#e5e7eb; text-align:center; font: 14px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .btn { padding:10px 14px; border-radius:10px; background:#2563eb; color:#fff; border:none; cursor:pointer; }
+    .btn:disabled { opacity:.5; cursor:not-allowed; }
+
+/* --- Settings page layout helpers --- */
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+  margin: 40px auto;
+  max-width: 1100px;
+  color: #e5e7eb;
+  font: 15px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+.panel {
+  background: #0f172a; /* slate-900-ish */
+  border: 1px solid #334155; /* slate-700-ish */
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+.panel h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+.panel p, .panel li, .panel small {
+  opacity: .9;
+}
+.kv {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 10px 14px;
+  align-items: center;
+}
+fieldset.controls {
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.controls legend { padding: 0 6px; opacity: .95; }
+.help small { display: block; margin-top: 6px; opacity: .8; }
+.hint { opacity: .75; font-size: 13px; }
+.kbd { background:#1f2937; padding:2px 6px; border-radius:4px; border:1px solid #111; }
+.actions { display:flex; gap:10px; justify-content:flex-end; margin-top: 8px; }
+.btn-primary { padding:10px 14px; border-radius:10px; background:#2563eb; color:#fff; border:none; cursor:pointer; }
+.details {
+  margin-top: 10px;
+}
+.details summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+}
+.details summary::-webkit-details-marker { display:none; }
+.details summary:before {
+  content: "▸";
+  margin-right: 6px;
+  display: inline-block;
+  transform: translateY(-1px);
+}
+.details[open] summary:before { content: "▾"; }
+@media (max-width: 900px){
+  .settings-grid { grid-template-columns: 1fr; }
+  .kv { grid-template-columns: 1fr; }
+}
+
+  </style>
+</head>
+<body>
+<script>
+// =============================
+// jsPsych init + data backup
+// =============================
+const jsPsych = initJsPsych({
+  on_finish: () => { console.log('All rows:', jsPsych.data.get().values()); },
+  on_data_update: () => {
+    try { localStorage.setItem('probe_backup', jsPsych.data.get().json()); } catch(e){}
+  }
+});
+
+// =============================
+// Layout & Defaults (can be overridden by Settings screen)
+// =============================
+const VIDEO_LAYOUT = {
+  ENABLE_TARGET_MM: true,   // cap width by physical size on huge displays (requires calibration)
+  TARGET_WIDTH_MM: 260,     // ~10.25"
+  RESPECT_VIEWPORT: true
+};
+
+// Experiment-wide options (toggled in UI)
+let OPTIONS = {
+  USE_FULLSCREEN: true,
+  USE_CALIBRATION: true,
+  USE_MICRO_QUESTIONS: false,
+  MICRO_QUESTION_EVERY: 10,
+  SHOW_BLOCK_SUMMARY: true,
+  ADAPTIVE_CADENCE: false,
+  ADAPTIVE_WINDOW: 8,
+  ADAPTIVE_DELTA: 75,
+  ADAPTIVE_MIN: 300,
+  ADAPTIVE_MAX: 1500,
+  FA_REFRACTORY_MS: 0,
+  HEARTBEAT_EVERY_MS: 30000,
+  USE_ADAPTIVE_TRAINING: true,
+  SKIP_TRAINING: true  
+};
+
+let STUDY_TYPE = 'rectangles'; // or 'letters'
+
+const MODEL_OPTS = {
+  TARGET_ACC: 0.75,
+  // Choose one of:
+  MODE: 'both', // 'both' | 'utility'
+  // If MODE === 'both', we need an RT target:
+  RT_TARGET_MS: 700,         // or null to derive from easy level
+  RT_TARGET_FROM_EASY: true, // if true, derive from easiest level’s median*factor
+  RT_EASY_FACTOR: 1.20,      // RT target = easyMedian * factor
+  // If MODE === 'utility':
+  UTILITY_WEIGHTS: { w_acc: 1.0, w_rt: 1.0 } // tune tradeoff
+};
+
+// Trial defaults (toggled in UI)
+let TRIAL_DEFAULTS = {
+  response_keys: ['f','j'],
+  min_soa: 500,
+  max_soa: 1000,
+  probe_duration: 1000,
+  sizes: [{w:15,h:25},{w:25,h:15}],        // px fallback
+  use_mm: false,                            // if true, use sizes_mm below (requires calibration)
+  sizes_mm: [{w:6,h:10},{w:10,h:6}],        // in millimeters
+  bounds: { xMinFrac: 1/16, xMaxFrac: 15/16, yMinFrac: 1/9, yMaxFrac: 8/9 },
+  probe_color: 'red'
+};
+
+
+const video_list = [
+  'videos/ANS_Feature.mp4',
+  'videos/ANS_Modulation.mp4',
+  'videos/ANS_Normal.mp4',
+  'videos/ANS_VOE.mp4',
+  'videos/Continuity_Feature.mp4',
+  'videos/Continuity_Modulation.mp4',
+  'videos/Continuity_Normal.mp4',
+  'videos/Continuity_VOE.mp4',
+  'videos/H_Solidity_Feature.mp4',
+  'videos/H_Solidity_Modulation.mp4',
+  'videos/H_Solidity_Normal.mp4',
+  'videos/H_Solidity_VOE.mp4',
+  'videos/Solidity_Feature.mp4',
+  'videos/Solidity_Modulation.mp4',
+  'videos/Solidity_Normal.mp4',
+  'videos/Solidity_VOE.mp4',
+  'videos/Support_Feature.mp4',
+  'videos/Support_Modulation.mp4',
+  'videos/Support_Normal.mp4',
+  'videos/Support_VOE.mp4',
+  'videos/Wynn_Feature.mp4',
+  'videos/Wynn_Modulation.mp4',
+  'videos/Wynn_Normal.mp4',
+  'videos/Wynn_VOE.mp4',
+  'videos/RollingContinuity_Feature.mp4',
+  'videos/RollingContinuity_Modulation.mp4',
+  'videos/RollingContinuity_Normal.mp4',
+  'videos/RollingContinuity_VOE.mp4',
+  'videos/Filler1.mp4',
+  'videos/Filler2.mp4',
+  'videos/Filler3.mp4',
+  'videos/Filler4.mp4',
+  'videos/Filler5.mp4',
+  'videos/Filler6.mp4',
+  'videos/Filler7.mp4',
+  'videos/Filler8.mp4',
+  'videos/Filler9.mp4',
+  'videos/Filler10.mp4',
+  'videos/Filler11.mp4',
+  'videos/Filler12.mp4',
+  'videos/Filler13.mp4',
+  'videos/Filler14.mp4',
+  'videos/Filler15.mp4',
+  'videos/Filler16.mp4',
+];
+
+const preloadVideos = {
+  type: jsPsychPreload,
+  auto_preload: false,
+  video: video_list,
+};
+
+
+
+// ================ helpers ================
+function getPxPerMm(){
+  if (typeof window.__px_per_mm === 'number') return window.__px_per_mm;
+  const props = jsPsych.data.get().properties?.() || {};
+  return (typeof props.px_per_mm === 'number') ? props.px_per_mm : null;
+}
+
+
+
+// =============================
+// UI Trial: SettingsScreen (first page to tweak parameters)
+// =============================
+class SettingsScreen { constructor(jsPsych){ this.jsPsych = jsPsych; }
+  static info = { name: 'settings-screen', parameters: {} };
+  trial(display_element){
+    const opt = OPTIONS; const t = TRIAL_DEFAULTS; const layout = VIDEO_LAYOUT;
+    // Build UI
+    display_element.innerHTML = `
+  <div class="settings-grid">
+    <!-- LEFT: Overview & explanations -->
+    <div class="panel help">
+      <h2 style="margin:0 0 10px;font-size:22px">Experiment Setup</h2>
+      <p>
+        This page lets you configure how the task runs. The right column holds the
+        actual controls; this left column explains what each group affects.
+      </p>
+
+      <div class="details">
+        <summary>General</summary>
+        <ul style="margin:8px 0 0 18px">
+          <li><b>Fullscreen</b>: enables immersive presentation, avoids distractions.</li>
+          <li><b>Calibration</b>: credit-card width to convert mm→px for consistent sizes.</li>
+          <li><b>Micro-questions</b>: quick check-ins every N videos.</li>
+          <li><b>Show summary</b>: brief per-video hit/miss/RT summary.</li>
+          <li><b>Adaptive training</b>: Stage 3 practice adjusts difficulty and
+              estimates a size ratio for ≈75% accuracy, which is then used in the main task.</li>
+        </ul>
+      </div>
+
+      <div class="details">
+        <summary>Probe timing</summary>
+        <p class="hint">SOA = time between potential probe onsets. Adaptive cadence nudges timing
+        based on recent miss rate.</p>
+      </div>
+
+      <div class="details">
+        <summary>Probe size</summary>
+        <p class="hint">You can specify sizes in pixels or millimeters (requires calibration).
+        Two templates are used: one tall, one wide.</p>
+      </div>
+
+      <div class="details">
+        <summary>Display layout</summary>
+        <p class="hint">Optionally cap the video by a physical width (in mm) so it stays
+        comparable across displays.</p>
+      </div>
+
+      <small>
+        Tips: Use <span class="kbd">F</span> / <span class="kbd">J</span> for responses. Between
+        videos a countdown appears; <span class="kbd">J</span> skips, <span class="kbd">F</span> pauses.
+      </small>
+    </div>
+
+    <!-- RIGHT: Actual controls -->
+    <div class="panel">
+      <h3>Controls</h3>
+
+      <fieldset class="controls">
+        <legend>General</legend>
+        <div class="kv">
+          <label for="fs">Fullscreen</label>
+          <label><input id="fs" type="checkbox" ${opt.USE_FULLSCREEN?'checked':''}></label>
+
+          <label for="cal">Use calibration</label>
+          <label><input id="cal" type="checkbox" ${opt.USE_CALIBRATION?'checked':''}></label>
+
+          <label for="mq">Micro-questions</label>
+          <div>
+            <label style="display:flex;align-items:center;gap:8px">
+              <input id="mq" type="checkbox" ${opt.USE_MICRO_QUESTIONS?'checked':''}>
+              every <input id="mqn" type="number" min="1" max="50" value="${opt.MICRO_QUESTION_EVERY}" style="width:60px"> videos
+            </label>
+          </div>
+
+          <label for="sum">Show summary</label>
+          <label><input id="sum" type="checkbox" ${opt.SHOW_BLOCK_SUMMARY?'checked':''}></label>
+
+          <label for="adapttrain">Adaptive Stage 3 training</label>
+          <label><input id="adapttrain" type="checkbox" ${OPTIONS.USE_ADAPTIVE_TRAINING?'checked':''}></label>
+
+          <label for="skiptrain">Skip training (go straight to experiment)</label>
+          <label><input id="skiptrain" type="checkbox" ${OPTIONS.SKIP_TRAINING?'checked':''}></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="controls">
+        <legend>Probe timing</legend>
+        <div class="kv">
+          <label for="minsoa">Min SOA</label>
+          <div>
+            <input id="minsoa" type="range" min="100" max="2000" step="25" value="${t.min_soa}">
+            <span id="minsoa_val">${t.min_soa}</span> ms
+
+          </div>
+
+          <label for="maxsoa">Max SOA</label>
+          <div>
+            <input id="maxsoa" type="range" min="150" max="3000" step="25" value="${t.max_soa}">
+            <span id="maxsoa_val">${t.max_soa}</span> ms
+          </div>
+
+          <label for="pdur">Probe duration</label>
+          <div>
+            <input id="pdur" type="range" min="200" max="3000" step="50" value="${t.probe_duration}">
+            <span id="pdur_val">${t.probe_duration}</span> ms
+          </div>
+
+          <label for="adaptive">Adaptive cadence</label>
+          <label><input id="adaptive" type="checkbox" ${OPTIONS.ADAPTIVE_CADENCE?'checked':''}></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="controls">
+        <legend>Probe size</legend>
+        <div class="kv">
+          <label for="usemm">Use millimeters</label>
+          <label><input id="usemm" type="checkbox" ${t.use_mm?'checked':''}></label>
+
+          <label>Template 1 (tall/wide)</label>
+          <div>
+            W1: <input id="w1" type="number" value="${t.use_mm?t.sizes_mm[0].w:t.sizes[0].w}" style="width:70px">
+            &nbsp;H1: <input id="h1" type="number" value="${t.use_mm?t.sizes_mm[0].h:t.sizes[0].h}" style="width:70px">
+          </div>
+
+          <label>Template 2 (tall/wide)</label>
+          <div>
+            W2: <input id="w2" type="number" value="${t.use_mm?t.sizes_mm[1].w:t.sizes[1].w}" style="width:70px">
+            &nbsp;H2: <input id="h2" type="number" value="${t.use_mm?t.sizes_mm[1].h:t.sizes[1].h}" style="width:70px">
+          </div>
+
+          <label>Units</label>
+          <div><span id="units">${t.use_mm?'mm':'px'}</span></div>
+        </div>
+        <small class="hint">If “Use millimeters” is on, make sure to run calibration first.</small>
+      </fieldset>
+
+      <fieldset class="controls">
+        <legend>Display layout</legend>
+        <div class="kv">
+          <label for="capmm">Cap by physical width</label>
+          <label><input id="capmm" type="checkbox" ${VIDEO_LAYOUT.ENABLE_TARGET_MM?'checked':''}></label>
+
+          <label for="targetmm">Target width</label>
+          <div>
+            <input id="targetmm" type="range" min="180" max="400" step="5" value="${VIDEO_LAYOUT.TARGET_WIDTH_MM}">
+            <span id="targetmm_val">${VIDEO_LAYOUT.TARGET_WIDTH_MM}</span> mm
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="actions">
+        <button id="start" class="btn-primary">Continue</button>
+      </div>
+    </div>
+  </div>`;
+
+    // Wire units toggle text
+    const usemm = display_element.querySelector('#usemm');
+    const units = display_element.querySelector('#units');
+    usemm.addEventListener('change', ()=>{ units.textContent = usemm.checked ? 'mm' : 'px'; });
+
+    // Show live values for sliders
+    const sMin = display_element.querySelector('#minsoa');
+    const sMax = display_element.querySelector('#maxsoa');
+    const sDur = display_element.querySelector('#pdur');
+    const sTmm = display_element.querySelector('#targetmm');
+    const oMin = display_element.querySelector('#minsoa_val');
+    const oMax = display_element.querySelector('#maxsoa_val');
+    const oDur = display_element.querySelector('#pdur_val');
+    const oTmm = display_element.querySelector('#targetmm_val');
+    [ [sMin,oMin], [sMax,oMax], [sDur,oDur], [sTmm,oTmm] ].forEach(([s,o])=> s.addEventListener('input', ()=>{ o.textContent = s.value; }));
+
+    // Continue button
+    display_element.querySelector('#start').addEventListener('click', ()=>{
+      // Read general toggles
+      OPTIONS.USE_FULLSCREEN = display_element.querySelector('#fs').checked;
+      OPTIONS.USE_CALIBRATION = display_element.querySelector('#cal').checked;
+      OPTIONS.USE_MICRO_QUESTIONS = display_element.querySelector('#mq').checked;
+      OPTIONS.MICRO_QUESTION_EVERY = Math.max(1, parseInt(display_element.querySelector('#mqn').value||10,10));
+      OPTIONS.SHOW_BLOCK_SUMMARY = display_element.querySelector('#sum').checked;
+      OPTIONS.ADAPTIVE_CADENCE = display_element.querySelector('#adaptive').checked;
+      OPTIONS.USE_ADAPTIVE_TRAINING = display_element.querySelector('#adapttrain').checked;
+      OPTIONS.SKIP_TRAINING = display_element.querySelector('#skiptrain').checked;
+
+      // Probe timing
+      TRIAL_DEFAULTS.min_soa = parseInt(sMin.value,10);
+      TRIAL_DEFAULTS.max_soa = parseInt(sMax.value,10);
+      TRIAL_DEFAULTS.probe_duration = parseInt(sDur.value,10);
+
+      // Size entries
+      TRIAL_DEFAULTS.use_mm = usemm.checked;
+      const w1 = parseFloat(display_element.querySelector('#w1').value);
+      const h1 = parseFloat(display_element.querySelector('#h1').value);
+      const w2 = parseFloat(display_element.querySelector('#w2').value);
+      const h2 = parseFloat(display_element.querySelector('#h2').value);
+      if (usemm.checked) {
+        TRIAL_DEFAULTS.sizes_mm = [{w:w1,h:h1},{w:w2,h:h2}];
+      } else {
+        TRIAL_DEFAULTS.sizes = [{w:Math.round(w1),h:Math.round(h1)},{w:Math.round(w2),h:Math.round(h2)}];
+      }
+
+      // Layout
+      VIDEO_LAYOUT.ENABLE_TARGET_MM = display_element.querySelector('#capmm').checked;
+      VIDEO_LAYOUT.TARGET_WIDTH_MM = parseInt(sTmm.value,10);
+
+       // Persist choices into session-level data
+      jsPsych.data.addProperties({ OPTIONS, TRIAL_DEFAULTS, VIDEO_LAYOUT });
+
+      // 1) Append the rest of the experiment
+      buildAndAppendMainTimeline();
+
+      // 2) End the settings trial
+      this.jsPsych.finishTrial({ settings_applied: true });
+    });
+  }
+}
+
+// =============================
+// Calibration (credit card width)
+// =============================
+class CalibrationCard { constructor(jsPsych){ this.jsPsych = jsPsych; }
+  static info = { name: 'calibration-card', parameters: {} };
+  trial(display_element){
+    const targetWidthMM = 85.6;
+    display_element.innerHTML = `
+      <div class="calib-wrap" style="width:100%;height:100vh;background:#000;display:flex;align-items:center;justify-content:center;">
+        <div style="position:absolute;top:40px;color:#e5e7eb;text-align:center;font:16px system-ui;left:0;right:0">
+          <h2 style="font-size:24px;margin:0 0 8px">Display Calibration</h2>
+          <p>Hold a credit card to the screen. Drag the blue handle so the rectangle matches the <b>card's width</b>. Then click Continue.</p>
+        </div>
+        <div id="card" style="position:relative;background:rgba(59,130,246,.15);border:2px dashed #60a5fa;height:54mm;width:200px;">
+          <div id="handle" style="position:absolute;top:0;right:-12px;width:12px;height:100%;cursor:ew-resize;background:rgba(96,165,250,.6);"></div>
+          <div style="position:absolute;bottom:-40px;left:0;right:0;color:#e5e7eb;text-align:center;font:14px system-ui;"><span id="mmread">Match width</span></div>
+        </div>
+      </div>
+      <div style="position:fixed;bottom:40px;left:0;right:0;text-align:center">
+        <button id="ok" style="padding:10px 14px;border-radius:10px;background:#2563eb;color:#fff;border:none;cursor:pointer">Continue</button>
+      </div>`;
+
+    const card = display_element.querySelector('#card');
+    const handle = display_element.querySelector('#handle');
+    const mmread = display_element.querySelector('#mmread');
+    let dragging=false,startX=0,startW=0;
+    const update = () => { const px = card.getBoundingClientRect().width; mmread.textContent = `Width: ${Math.round(px)} px` };
+    update();
+    const onDown = e=>{ dragging=true; startX=(e.touches?e.touches[0].clientX:e.clientX); startW=card.getBoundingClientRect().width; e.preventDefault(); };
+    const onMove = e=>{ if(!dragging) return; const x=(e.touches?e.touches[0].clientX:e.clientX); const dx=x-startX; const nw=Math.max(60,startW+dx); card.style.width=nw+'px'; update(); };
+    const onUp = ()=>{ dragging=false; };
+    handle.addEventListener('mousedown', onDown); window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
+    handle.addEventListener('touchstart', onDown, {passive:false}); window.addEventListener('touchmove', onMove, {passive:false}); window.addEventListener('touchend', onUp);
+
+    display_element.querySelector('#ok').addEventListener('click', ()=>{
+      const px = card.getBoundingClientRect().width;
+      const px_per_mm = px / targetWidthMM;
+      jsPsych.data.addProperties({ px_per_mm });
+      window.__px_per_mm = px_per_mm;
+      this.jsPsych.finishTrial({ px_per_mm });
+    });
+  }
+}
+
+// =============================
+// Countdown (pause/skip)
+// =============================
+class CountdownPause { constructor(jsPsych){ this.jsPsych = jsPsych; }
+  static info = { name: 'countdown-pause', parameters: { seconds: { default: 5 } } };
+  trial(display_element, trial){
+    document.body.classList.add('fullblack');
+    let remaining = trial.seconds || 5, paused=false, timer=null;
+    display_element.innerHTML = `<div style="width:100%;height:100vh;background:#000;display:flex;align-items:center;justify-content:center;"><div id="cd" style="color:#e5e7eb;font-size:96px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">${remaining}</div></div>`;
+    const cd = display_element.querySelector('#cd');
+    const tick = ()=>{ if(paused) return; remaining-=1; if(remaining<=0){ done(false); return;} cd.textContent=remaining; timer=setTimeout(tick,1000); };
+    const done = (skipped)=>{ clearTimeout(timer); window.removeEventListener('keydown', onKey); 
+    document.body.classList.remove('fullblack'); 
+    this.jsPsych.finishTrial({ skipped, paused }); };
+    const onKey = e=>{ const k=e.key.toLowerCase(); if(k==='j'){ done(true);} else if(k==='f' && !paused){ paused=true; cd.innerHTML=`<div style="font-size:28px;line-height:1.6;text-align:center"><div style="font-size:64px;margin-bottom:12px">Paused</div><div>Press <kbd style='background:#1f2937;padding:2px 6px;border-radius:4px;border:1px solid #111'>J</kbd> to continue</div></div>`; }};
+    window.addEventListener('keydown', onKey); timer=setTimeout(tick,1000);
+  }
+}
+
+// =============================
+// Practice (no-video) probes
+// =============================
+class PracticeProbes { constructor(jsPsych){ this.jsPsych = jsPsych; }
+  static info = { name:'practice-probes', parameters:{
+    n_trials:{default:10},          // number of probes to show
+    center_only:{default:false},    // stage 1: true (center), stage 2/3: false
+    size_scale:{default:1},         // stage 1: 5, stage 2/3: 1
+    duration_ms:{default:null},     // stage 1/2: null (until response), stage 3: 1000
+    require_space_to_start:{default:false}, // stage 3: true
+    prompt_html:{default:''},       // instructions shown above canvas
+    use_mm:{default:false},         // use mm sizes if available
+    sizes_px:{default:null},        // fallback px sizes [{w,h},{w,h}]
+    sizes_mm:{default:null},        // mm sizes [{w,h},{w,h}]
+    bounds:{default:{xMinFrac:1/16,xMaxFrac:15/16,yMinFrac:1/9,yMaxFrac:8/9}},
+    response_keys:{default:['f','j']} // 'j' for tall, 'f' for wide
+  }};
+
+  trial(display_element, trial){
+    document.body.classList.add('fullblack');
+
+    // Container
+    const wrap = document.createElement('div');
+    wrap.className = 'trial-wrap';
+    wrap.style.display = 'flex';
+    wrap.style.alignItems = 'center';
+    wrap.style.justifyContent = 'center';
+    wrap.style.width = '100vw';
+    wrap.style.height = '100vh';
+    wrap.style.background = '#000';
+
+    const shell = document.createElement('div');
+    shell.className = 'video-shell';
+    wrap.appendChild(shell);
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'overlay';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    shell.appendChild(canvas);
+
+    display_element.innerHTML = '';
+    display_element.appendChild(wrap);
+
+    if (trial.prompt_html){
+      const hud = document.createElement('div');
+      hud.className = 'hud';
+      hud.innerHTML = trial.prompt_html;
+      display_element.appendChild(hud);
+    }
+
+    const ctx = canvas.getContext('2d');
+
+    // Layout (16:9 centered like video)
+    const px_per_mm = getPxPerMm();
+    function layoutShell(){
+      const vw=window.innerWidth, vh=window.innerHeight;
+      const maxW = Math.min(vw, Math.floor(vh*16/9));
+      const desiredW = maxW; // always fill viewport for practice
+      const desiredH = Math.round(desiredW * 9/16);
+      shell.style.width = desiredW+'px';
+      shell.style.height = desiredH+'px';
+    }
+    const resize = ()=>{ layoutShell(); const r=shell.getBoundingClientRect(); canvas.width=Math.max(1,Math.round(r.width)); canvas.height=Math.max(1,Math.round(r.height)); draw(); };
+    window.addEventListener('resize', resize);
+
+    // Compute sizes
+    const baseSizesPx = (trial.use_mm && px_per_mm && trial.sizes_mm)
+      ? trial.sizes_mm.map(s=>({w:Math.max(1,Math.round(s.w*px_per_mm)), h:Math.max(1,Math.round(s.h*px_per_mm))}))
+      : (trial.sizes_px || TRIAL_DEFAULTS.sizes);
+
+    const sizesPx = baseSizesPx.map(s=>({ w:Math.round(s.w*trial.size_scale), h:Math.round(s.h*trial.size_scale) }));
+
+    // Utilities
+    const clear=()=>ctx.clearRect(0,0,canvas.width,canvas.height);
+    const drawRect=(x,y,w,h)=>{ ctx.fillStyle='red'; ctx.fillRect(Math.round(x-w/2), Math.round(y-h/2), w, h); };
+    const choose = arr => arr[Math.floor(Math.random()*arr.length)];
+    const randFloat=(a,b)=>Math.random()*(b-a)+a;
+
+    function pickPos(size) {
+      if (trial.center_only) return { x: canvas.width/2, y: canvas.height/2 };
+      const {xMinFrac,xMaxFrac,yMinFrac,yMaxFrac} = trial.bounds || TRIAL_DEFAULTS.bounds;
+      const w=size.w, h=size.h;
+      const xMin = Math.round(xMinFrac*canvas.width) + w/2;
+      const xMax = Math.round(xMaxFrac*canvas.width) - w/2;
+      const yMin = Math.round(yMinFrac*canvas.height) + h/2;
+      const yMax = Math.round(yMaxFrac*canvas.height) - h/2;
+      return { x: Math.round(randFloat(xMin,xMax)), y: Math.round(randFloat(yMin,yMax)) };
+    }
+
+    // Flow
+    let shown=0, correct=0, onScreen=null, waitStart=null, waitingForSpace = !!trial.require_space_to_start;
+
+    function draw(){
+      clear();
+      if (onScreen){
+        drawRect(onScreen.x, onScreen.y, onScreen.w, onScreen.h);
+      }
+      if (waitingForSpace){
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.font = '20px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('Press SPACE to start this practice', canvas.width/2, Math.round(canvas.height*0.5));
+      }
+    }
+
+    function newProbe(){
+      const size = choose(sizesPx);
+      const pos = pickPos(size);
+      onScreen = { ...pos, w:size.w, h:size.h, onset: performance.now() };
+      draw();
+      if (trial.duration_ms != null) {
+      if (expireTimer) clearTimeout(expireTimer);
+        armExpiry();
+      }
+    }
+
+    const endTrialNow = () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', resize);
+      document.body.classList.remove('fullblack');
+      const acc = shown ? correct/shown : 0;
+      this.jsPsych.finishTrial({ n_trials: trial.n_trials, shown, correct, accuracy: acc });
+    };
+
+    function nextOrEnd(){
+      if (shown >= trial.n_trials){
+        endTrialNow();
+      } else {
+        newProbe();
+      }
+    }
+
+    function onKey(e){
+      const k = e.key.toLowerCase();
+      if (waitingForSpace){
+        if (k === ' '){
+          waitingForSpace = false;
+          newProbe();
+          return;
+        } else {
+          return; // ignore other keys until SPACE
+        }
+      }
+
+      if (!trial.response_keys.includes(k)) return;
+
+      // score only if a probe is visible
+      if (onScreen){
+        const isTall = onScreen.h > onScreen.w;
+        const correctKey = isTall ? 'j' : 'f'; // J=tall, F=wide
+        const isCorrect = (k === correctKey);
+        correct += isCorrect ? 1 : 0;
+        shown += 1;
+	if (expireTimer) { clearTimeout(expireTimer); expireTimer = null; }
+
+        if (trial.duration_ms == null){
+          // until response: hide immediately, go to next
+          onScreen = null; draw();
+          nextOrEnd();
+        } else {
+          // duration-limited: treat key as hit if within window; still remove and schedule next
+          onScreen = null; draw();
+          nextOrEnd();
+        }
+      } else {
+        // no probe onscreen: ignore in practice
+      }
+    }
+
+    // Duration-expiry path (stage 3)
+    let expireTimer=null;
+    function armExpiry(){
+      if (trial.duration_ms == null) return;
+      if (!onScreen) return;
+      expireTimer = setTimeout(()=>{
+        // timeout = counted as shown but not necessarily "correct"
+        shown += 1;
+        onScreen = null; draw();
+        nextOrEnd();
+      }, trial.duration_ms);
+    }
+
+    // Start
+    resize();
+    window.addEventListener('keydown', onKey);
+    if (trial.require_space_to_start){
+      waitingForSpace = true; draw();
+    } else {
+      newProbe();
+    }
+  }
+}
+
+// =============================
+// Adaptive Stage-3 (no-video) practice:
+// makes rectangles more "square" as performance improves.
+// Stops when rolling last-10 accuracy <= 0.55 (≈ chance) or max trials.
+// Records accuracy per difficulty and estimates 75% threshold; updates TRIAL_DEFAULTS.
+// =============================
+class PracticeAdaptive extends PracticeProbes {
+  // reuse canvas layout from PracticeProbes; override behavior
+  static info = { name:'practice-adaptive', parameters:{
+    max_trials: { default: 80 },         // hard cap
+    require_space_to_start: { default: true },
+    prompt_html: { default: '' },
+    use_mm: { default: false },
+    sizes_px: { default: null },
+    sizes_mm: { default: null },
+    bounds: { default: {xMinFrac:1/16,xMaxFrac:15/16,yMinFrac:1/9,yMaxFrac:8/9} },
+    response_keys: { default: ['f','j'] },
+    // Base difficulty pair: minSide and start longSide (e.g., 15 x 25)
+    min_side_px: { default: 15 },        // keep this fixed
+    start_long_px: { default: 25 },      // decrease toward min_side_px
+    consec_to_step: { default: 3 },      // every 3 consecutive correct at a level -> harder by 1 px
+    roll_window: { default: 10 },        // stop if rolling accuracy <= 0.55
+    roll_stop_at: { default: 0.55 }
+  }};
+
+  trial(display_element, trial){
+    document.body.classList.add('fullblack');
+
+    // ---- UI from parent ----
+    const wrap = document.createElement('div');
+    wrap.className = 'trial-wrap';
+    wrap.style.display = 'flex';
+    wrap.style.alignItems = 'center';
+    wrap.style.justifyContent = 'center';
+    wrap.style.width = '100vw';
+    wrap.style.height = '100vh';
+    wrap.style.background = '#000';
+
+    const shell = document.createElement('div');
+    shell.className = 'video-shell';
+    wrap.appendChild(shell);
+
+    const canvas = document.createElement('canvas');
+    canvas.className = 'overlay';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    shell.appendChild(canvas);
+
+    display_element.innerHTML = '';
+    display_element.appendChild(wrap);
+
+    if (trial.prompt_html){
+      const hud = document.createElement('div');
+      hud.className = 'hud';
+      hud.innerHTML = trial.prompt_html;
+      display_element.appendChild(hud);
+    }
+
+    const ctx = canvas.getContext('2d');
+
+    // Layout
+    const px_per_mm = getPxPerMm();
+    function layoutShell(){
+      const vw=window.innerWidth, vh=window.innerHeight;
+      const maxW = Math.min(vw, Math.floor(vh*16/9));
+      const desiredW = maxW;
+      const desiredH = Math.round(desiredW * 9/16);
+      shell.style.width = desiredW+'px';
+      shell.style.height = desiredH+'px';
+    }
+    const resize = ()=>{ layoutShell(); const r=shell.getBoundingClientRect(); canvas.width=Math.max(1,Math.round(r.width)); canvas.height=Math.max(1,Math.round(r.height)); draw(); };
+    window.addEventListener('resize', resize);
+
+    // Helpers
+    const clear=()=>ctx.clearRect(0,0,canvas.width,canvas.height);
+    const drawRect=(x,y,w,h)=>{ ctx.fillStyle='red'; ctx.fillRect(Math.round(x-w/2), Math.round(y-h/2), w, h); };
+    const choose = arr => arr[Math.floor(Math.random()*arr.length)];
+    const randFloat=(a,b)=>Math.random()*(b-a)+a;
+
+    const {xMinFrac,xMaxFrac,yMinFrac,yMaxFrac} = trial.bounds || TRIAL_DEFAULTS.bounds;
+    function pickPos(w,h){
+      const xMin = Math.round(xMinFrac*canvas.width) + w/2;
+      const xMax = Math.round(xMaxFrac*canvas.width) - w/2;
+      const yMin = Math.round(yMinFrac*canvas.height) + h/2;
+      const yMax = Math.round(yMaxFrac*canvas.height) - h/2;
+      return { x: Math.round(randFloat(xMin,xMax)), y: Math.round(randFloat(yMin,yMax)) };
+    }
+
+    // Adaptive state
+    const minSide = trial.min_side_px;          // fixed small side
+    let longSide = trial.start_long_px;         // decreasing toward minSide
+    let consecCorrectAtLevel = 0;
+
+    let totalTrials = 0;
+    let recent = [];                            // last roll_window of booleans
+    const perLevel = new Map();                 // longSide -> {n, correct}
+
+    // active probe + start gate
+    let onScreen = null;
+    let waitingForSpace = !!trial.require_space_to_start;
+
+    function draw(){
+      clear();
+      if (onScreen){
+        drawRect(onScreen.x, onScreen.y, onScreen.w, onScreen.h);
+      }
+      if (waitingForSpace){
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.font = '20px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('Press SPACE to start adaptive practice', canvas.width/2, Math.round(canvas.height*0.5));
+      }
+    }
+
+    function nextDifficultyIfNeeded(){
+      if (consecCorrectAtLevel >= trial.consec_to_step){
+        consecCorrectAtLevel = 0;
+        longSide = Math.max(minSide+1, longSide - 1); // don't equalize entirely; keep at least 1px difference
+      }
+    }
+
+    function rollingAcc(){
+      if (recent.length === 0) return 1;
+      const k = recent.reduce((a,b)=>a+(b?1:0),0);
+      return k / recent.length;
+    }
+
+    function recordLevel(isCorrect){
+      if (!perLevel.has(longSide)) perLevel.set(longSide, { n:0, correct:0, trials:[] }); // <-- trials
+      const obj = perLevel.get(longSide);
+      obj.n += 1; if (isCorrect) obj.correct += 1;
+    }
+
+    function newProbe(){
+      // choose tall vs wide randomly at current difficulty
+      const tall = Math.random() < 0.5;
+      const w = tall ? minSide : longSide;
+      const h = tall ? longSide : minSide;
+      const pos = pickPos(w,h);
+      onScreen = { ...pos, w, h, tall, onset_perf_ms: performance.now() };
+      draw();
+      resetWatchdog();
+    }
+
+    function maybeStop(){
+      if (totalTrials >= trial.max_trials) return true;
+
+      // If we've reached the hardest level (minSide + 1) and observed enough trials there
+      const hardest = minSide + 1;
+      const atHardest = longSide <= hardest;
+      const hardStats = perLevel.get(hardest);
+      const enoughAtHardest = hardStats && hardStats.n >= 10; // collect at least 10 at hardest level
+      if (atHardest && enoughAtHardest) return true;
+
+      // Rolling-window stop near chance
+      if (recent.length >= trial.roll_window && rollingAcc() <= trial.roll_stop_at) return true;
+
+      return false;
+    }
+
+
+const finish = () => {
+  clearTimeout(watchdog);
+  window.removeEventListener('keydown', onKey);
+  window.removeEventListener('resize', resize);
+  document.body.classList.remove('fullblack');
+
+  // Summarize per-level (easiest -> hardest)
+  const entries = [...perLevel.entries()].sort((a,b)=>b[0]-a[0]); // longSide desc
+  const curve = entries.map(([L, obj]) => ({
+    long_side: L,
+    min_side: minSide,
+    ratio: L / minSide,
+    n: obj.n,
+    correct: obj.correct,
+    acc: obj.n ? obj.correct / obj.n : NaN
+  }));
+
+  // Build level-wise with median RT (from stored hits)
+  const byLevel = entries.map(([L, obj]) => {
+    const trialsHere = obj.trials || [];
+    const hitRTs = trialsHere.filter(t => t.isCorrect && Number.isFinite(t.rt_ms)).map(t => t.rt_ms).sort((a,b)=>a-b);
+    const medianRT = hitRTs.length ? hitRTs[Math.floor(hitRTs.length/2)] : NaN;
+    const ratio = L / minSide;
+    return { longSide: L, ratio, x: Math.log(Math.max(1, ratio)), n: obj.n, correct: obj.correct, acc: obj.n ? obj.correct/obj.n : NaN, medianRT };
+  }).filter(r => Number.isFinite(r.acc) && r.n >= 3);
+
+  // --- model fits ---
+  function fitLogisticIRLS(xs, ys, ws, ridge=1e-3, maxIter=25){
+    let a=0, b=0;
+    for(let iter=0; iter<maxIter; iter++){
+      const z = xs.map((x,i) => a + b*x);
+      const p = z.map(v => 1/(1+Math.exp(-v)));
+      const W = p.map(pi => Math.max(1e-6, pi*(1-pi)));
+      const t = ys.map((y,i) => z[i] + (y - p[i]) / W[i]);
+      let S00=ridge, S01=0, S11=ridge, T0=0, T1=0;
+      for (let i=0;i<xs.length;i++){
+        const wi = W[i] * (ws ? ws[i] : 1);
+        S00 += wi;
+        S01 += wi * xs[i];
+        S11 += wi * xs[i]*xs[i];
+        T0  += wi * t[i];
+        T1  += wi * xs[i]*t[i];
+      }
+      const det = S00*S11 - S01*S01;
+      if (det <= 1e-9) break;
+      const na = ( S11*T0 - S01*T1) / det;
+      const nb = (-S01*T0 + S00*T1) / det;
+      if (Math.abs(na-a)+Math.abs(nb-b) < 1e-6) { a=na; b=nb; break; }
+      a = na; b = nb;
+    }
+    return {a,b, predict:(x)=>1/(1+Math.exp(-(a+b*x)))};
+  }
+  function fitLinear(xs, ys, ws, ridge=1e-6){
+    let S00=ridge, S01=0, S11=ridge, T0=0, T1=0;
+    for (let i=0;i<xs.length;i++){
+      const w = ws ? ws[i] : 1;
+      S00 += w;
+      S01 += w*xs[i];
+      S11 += w*xs[i]*xs[i];
+      T0  += w*ys[i];
+      T1  += w*xs[i]*ys[i];
+    }
+    const det = S00*S11 - S01*S01;
+    const c = ( S11*T0 - S01*T1) / det;
+    const d = (-S01*T0 + S00*T1) / det;
+    return {c,d, predict:(x)=>c + d*x};
+  }
+
+  const accRows = byLevel.filter(r => Number.isFinite(r.acc));
+  const rtRows  = byLevel.filter(r => Number.isFinite(r.medianRT) && r.medianRT > 0);
+
+  const xAcc = accRows.map(r => r.x);
+  const yAcc = accRows.map(r => r.acc);
+  const wAcc = accRows.map(r => r.n);
+
+  const xRT  = rtRows.map(r => r.x);
+  const yRT  = rtRows.map(r => Math.log(r.medianRT));
+  const wRT  = rtRows.map(r => r.n);
+
+  const haveAcc = xAcc.length >= 2;
+  const haveRT  = xRT.length  >= 2;
+
+  let accModel = null, rtModel = null;
+  if (haveAcc) accModel = fitLogisticIRLS(xAcc, yAcc, wAcc, 1e-3, 30);
+  if (haveRT)  rtModel  = fitLinear(xRT,  yRT,  wRT,  1e-6);
+
+  function solveForAcc(target = MODEL_OPTS.TARGET_ACC){
+    if (!accModel || byLevel.length === 0) return Math.log(1.2); // conservative fallback
+    let lo = Math.min(...byLevel.map(r=>r.x)) - 0.5;
+    let hi = Math.max(...byLevel.map(r=>r.x)) + 0.5;
+    for (let i=0;i<50;i++){
+      const mid = (lo+hi)/2;
+      (accModel.predict(mid) - target >= 0) ? (hi = mid) : (lo = mid);
+    }
+    return (lo+hi)/2;
+  }
+
+  // RT target
+  let rtTarget = MODEL_OPTS.RT_TARGET_MS;
+  if (MODEL_OPTS.RT_TARGET_FROM_EASY || !rtTarget){
+    const easiest = rtRows[0];
+    rtTarget = (easiest && Number.isFinite(easiest.medianRT))
+      ? easiest.medianRT * (MODEL_OPTS.RT_EASY_FACTOR || 1.2)
+      : 700;
+  }
+  const logRTTarget = Math.log(rtTarget);
+
+  function pickX_both(){
+    if (!accModel || !rtModel || byLevel.length===0) return solveForAcc(MODEL_OPTS.TARGET_ACC);
+    const xs = byLevel.map(r => r.x);
+    const xmin = Math.min(...xs) - 0.25;
+    const xmax = Math.max(...xs) + 0.25;
+    const feasible = [];
+    for (let i=0;i<=200;i++){
+      const x = xmin + (xmax-xmin)*i/200;
+      if (accModel.predict(x) >= MODEL_OPTS.TARGET_ACC && rtModel.predict(x) <= logRTTarget) feasible.push(x);
+    }
+    return feasible.length ? Math.min(...feasible) : solveForAcc(MODEL_OPTS.TARGET_ACC);
+  }
+  function pickX_utility(){
+    if (!accModel || !rtModel || byLevel.length===0) return solveForAcc(MODEL_OPTS.TARGET_ACC);
+    const xs = byLevel.map(r => r.x);
+    const xmin = Math.min(...xs) - 0.25;
+    const xmax = Math.max(...xs) + 0.25;
+    const {w_acc, w_rt} = MODEL_OPTS.UTILITY_WEIGHTS || {w_acc:1, w_rt:1};
+    let bestX = (xmin+xmax)/2, bestU = Infinity;
+    for (let i=0;i<=400;i++){
+      const x = xmin + (xmax-xmin)*i/400;
+      const accErr = accModel.predict(x) - MODEL_OPTS.TARGET_ACC;
+      const rtErr  = (rtModel ? rtModel.predict(x) : 0) - logRTTarget;
+      const U = w_acc*accErr*accErr + w_rt*rtErr*rtErr;
+      if (U < bestU){ bestU=U; bestX=x; }
+    }
+    return bestX;
+  }
+
+  let xChosen;
+  if (MODEL_OPTS.MODE === 'both') {
+    xChosen = (haveAcc && haveRT) ? pickX_both() : solveForAcc(MODEL_OPTS.TARGET_ACC);
+  } else {
+    xChosen = (haveAcc && haveRT) ? pickX_utility() : solveForAcc(MODEL_OPTS.TARGET_ACC);
+  }
+
+  // If user is at ceiling even at hardest observed level, bias harder
+  (function ceilingGuard(){
+    if (!accModel || byLevel.length===0) return;
+    const xs = byLevel.map(r => r.x);
+    const hardestX = Math.min(...xs) - 0.25;
+    if (accModel.predict(hardestX) >= 0.90) {
+      xChosen = Math.min(xChosen, hardestX + 0.05);
+    }
+  })();
+
+  // ---- convert x -> ratio and clamp to design bounds ----
+  // Design-space bounds
+  const baseMin = Math.min(
+    TRIAL_DEFAULTS.sizes[0].w, TRIAL_DEFAULTS.sizes[0].h,
+    TRIAL_DEFAULTS.sizes[1].w, TRIAL_DEFAULTS.sizes[1].h
+  );
+
+  const MAX_LONG_ALLOWED = (typeof trial.max_long_allowed === 'number' ? trial.max_long_allowed : 25);
+  const maxRatio = MAX_LONG_ALLOWED / baseMin; // e.g., 25/15 = 1.667
+
+  const ratioChosenRaw = Math.exp(xChosen);
+  const ratioChosen = Math.min(Math.max(1.01, ratioChosenRaw), maxRatio);
+
+  const newLong = Math.max(baseMin+1, Math.round(baseMin * ratioChosen));
+  TRIAL_DEFAULTS.sizes = [
+    { w: baseMin, h: newLong },   // tall
+    { w: newLong, h: baseMin }    // wide
+  ];
+
+  // Persist summary (guard if models missing)
+  jsPsych.data.addProperties({
+    ADAPTIVE_PRACTICE: {
+      curve,
+      byLevel,
+      acc_model: accModel ? { a: accModel.a, b: accModel.b } : null,
+      rt_model:  rtModel  ? { c: rtModel.c, d: rtModel.d }   : null,
+      target: {
+        mode: MODEL_OPTS.MODE,
+        target_acc: MODEL_OPTS.TARGET_ACC,
+        rt_target_ms: rtTarget,
+        chosen_ratio: ratioChosen,
+        predicted: {
+          acc: accModel ? accModel.predict(xChosen) : null,
+          rt_ms: rtModel ? Math.exp(rtModel.predict(xChosen)) : null
+        }
+      },
+      chosen_sizes: TRIAL_DEFAULTS.sizes
+    }
+  });
+
+  // End trial payload
+  this.jsPsych.finishTrial({
+    curve,
+    byLevel,
+    chosen_ratio: ratioChosen,
+    predicted_acc: accModel ? accModel.predict(xChosen) : null,
+    predicted_rt_ms: rtModel ? Math.exp(rtModel.predict(xChosen)) : null
+  });
+};
+
+
+
+// ONE watchdog, declared AFTER finish():
+let watchdog = null;
+function resetWatchdog(){
+  if (watchdog) clearTimeout(watchdog);
+  watchdog = setTimeout(() => finish(), 30000);
+}
+
+function onKey(e){
+  const k = e.key.toLowerCase();
+
+  if (waitingForSpace){
+    if (k === ' ') {
+      waitingForSpace = false;
+      resetWatchdog();
+      newProbe();
+    }
+    return;
+  }
+
+  if (!onScreen) return;
+  if (!trial.response_keys.includes(k)) return;
+
+  // Decide correct key for current probe
+  const isTall = onScreen.h > onScreen.w;
+  const correctKey = isTall ? 'j' : 'f';
+  const isCorrect = (k === correctKey);
+
+  // ensure bucket has a trials array
+  if (!perLevel.has(longSide)) perLevel.set(longSide, {n:0, correct:0, trials:[]});
+  const lvl = perLevel.get(longSide);
+  if (isCorrect && onScreen){ // score RT only for hits
+    const rt_ms = performance.now() - (onScreen.onset_perf_ms || performance.now());
+    lvl.trials.push({ isCorrect: true, rt_ms });
+  } else {
+    lvl.trials.push({ isCorrect: false });
+  }
+
+  // Record & adapt
+  totalTrials += 1;
+  recordLevel(isCorrect);
+  recent.push(isCorrect);
+  if (recent.length > trial.roll_window) recent.shift();
+
+  if (isCorrect){
+    consecCorrectAtLevel += 1;
+    nextDifficultyIfNeeded();
+  } else {
+    consecCorrectAtLevel = 0;
+  }
+
+  onScreen = null; 
+  draw();
+  resetWatchdog();
+
+  if (maybeStop()) {
+    finish();
+  } else {
+    newProbe();
+  }
+}
+
+    // Start
+    resize();
+    window.addEventListener('keydown', onKey);
+    if (trial.require_space_to_start){
+      waitingForSpace = true; 
+      draw();
+    } else {
+      newProbe();
+      }
+    }
+  }
+
+
+
+
+
+// =============================
+// Phase B: PracticeContrastBackground
+// Difficulty variable = contrast (harder => lower contrast)
+// Background = full-frame smooth hue gradient
+// =============================
+class PracticeContrastBackground { constructor(jsPsych){ this.jsPsych = jsPsych; }
+  static info = { name:'practice-contrast-background', parameters:{
+    require_space_to_start: { default: true },
+    response_keys: { default: ['f','j'] },
+    bounds: { default: {xMinFrac:1/16,xMaxFrac:15/16,yMinFrac:1/9,yMaxFrac:8/9} },
+    // contrast in [0..1]; we actually use it as alpha over the gradient bg
+    start_contrast: { default: 0.40 },    // easier
+    min_contrast:   { default: 0.06 },    // hardest
+    step_contrast:  { default: 0.02 },    // decrease when criteria met
+    consec_to_step: { default: 5 },
+    max_trials:     { default: 80 },
+    probe_size_px:  { default: { w: 25, h: 15 } }, // fixed size; only contrast varies
+  }};
+
+  trial(display_element, trial){
+    document.body.classList.add('fullblack');
+
+    // Layout shell + canvas
+    const wrap = document.createElement('div'); wrap.className='trial-wrap'; wrap.style.cssText='display:flex;align-items:center;justify-content:center;width:100vw;height:100vh;background:#000;';
+    const shell = document.createElement('div'); shell.className='video-shell'; wrap.appendChild(shell);
+    const canvas = document.createElement('canvas'); canvas.className='overlay'; canvas.style.width='100%'; canvas.style.height='100%'; shell.appendChild(canvas);
+    display_element.innerHTML=''; display_element.appendChild(wrap);
+
+    const hud = document.createElement('div'); hud.className='hud';
+    hud.innerHTML = `<p style="color:#e5e7eb">Phase B: <b>Color-gradient background</b>. J=tall, F=wide. Press <b>SPACE</b> to start.</p>`;
+    display_element.appendChild(hud);
+
+    const ctx = canvas.getContext('2d');
+
+    // gradient background renderer (smooth hue sweep, vertical)
+    function drawBackground(){
+      const w = canvas.width, h = canvas.height;
+      const img = ctx.createImageData(w, h);
+      for (let y=0; y<h; y++){
+        const t = y/(h-1);            // 0..1
+        const hue = (t*360) % 360;    // 0..360
+        // Convert HSL( hue, 70%, 50% ) to RGB
+        const c = (1 - Math.abs(2*0.5 - 1)) * 0.70;
+        const x = c * (1 - Math.abs(((hue/60)%2) - 1));
+        const m = 0.5 - c/2;
+        let r=0,g=0,b=0;
+        if (0<=hue && hue<60)   { r=c; g=x; b=0; }
+        else if (60<=hue && hue<120) { r=x; g=c; b=0; }
+        else if (120<=hue && hue<180){ r=0; g=c; b=x; }
+        else if (180<=hue && hue<240){ r=0; g=x; b=c; }
+        else if (240<=hue && hue<300){ r=x; g=0; b=c; }
+        else                         { r=c; g=0; b=x; }
+        r = Math.round((r+m)*255); g = Math.round((g+m)*255); b = Math.round((b+m)*255);
+        for (let xpix=0;xpix<w;xpix++){
+          const i = (y*w + xpix)*4;
+          img.data[i]=r; img.data[i+1]=g; img.data[i+2]=b; img.data[i+3]=255;
+        }
+      }
+      ctx.putImageData(img,0,0);
+    }
+
+    // sizing/layout
+    function layoutShell(){
+      const vw=window.innerWidth, vh=window.innerHeight;
+      const maxW = Math.min(vw, Math.floor(vh*16/9));
+      const desiredW = maxW, desiredH = Math.round(desiredW*9/16);
+      shell.style.width = desiredW+'px'; shell.style.height = desiredH+'px';
+    }
+    const resize = ()=>{ layoutShell(); const r=shell.getBoundingClientRect(); canvas.width=Math.max(1,Math.round(r.width)); canvas.height=Math.max(1,Math.round(r.height)); drawAll(); };
+
+    // bounds / helpers
+    const {xMinFrac,xMaxFrac,yMinFrac,yMaxFrac} = trial.bounds;
+    const choose = arr => arr[Math.floor(Math.random()*arr.length)];
+    const randFloat=(a,b)=>Math.random()*(b-a)+a;
+
+    function pickPos(w,h){
+      const xMin = Math.round(xMinFrac*canvas.width) + w/2;
+      const xMax = Math.round(xMaxFrac*canvas.width) - w/2;
+      const yMin = Math.round(yMinFrac*canvas.height) + h/2;
+      const yMax = Math.round(yMaxFrac*canvas.height) - h/2;
+      return { x: Math.round(randFloat(xMin,xMax)), y: Math.round(randFloat(yMin,yMax)) };
+    }
+
+    function drawProbeRect(x,y,w,h,contrast){
+      // Draw probe over gradient using globalAlpha = contrast (0..1)
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, contrast));
+      ctx.fillStyle = 'black';   // black on colorful bg; alpha gives effective contrast
+      ctx.fillRect(Math.round(x-w/2), Math.round(y-h/2), w, h);
+      ctx.restore();
+    }
+
+    // adaptive state (contrast)
+    let contrast = trial.start_contrast;
+    let consecCorrect = 0;
+    let totalTrials = 0;
+    let perLevel = new Map(); // contrast -> { n, correct, trials:[] }
+    let onScreen = null;
+    let waitingForSpace = !!trial.require_space_to_start;
+
+    function recordLevel(isCorrect){
+      const key = +contrast.toFixed(3);
+      if (!perLevel.has(key)) perLevel.set(key, { n:0, correct:0 });
+      const o = perLevel.get(key);
+      o.n += 1; if (isCorrect) o.correct += 1;
+    }
+
+    function adaptIfNeeded(){
+      if (consecCorrect >= trial.consec_to_step){
+        consecCorrect = 0;
+        contrast = Math.max(trial.min_contrast, +(contrast - trial.step_contrast).toFixed(3));
+      }
+    }
+
+    function newProbe(){
+      const tall = Math.random() < 0.5;
+      const w = tall ? trial.probe_size_px.w : trial.probe_size_px.h; // keep area roughly similar
+      const h = tall ? trial.probe_size_px.h : trial.probe_size_px.w;
+      const pos = pickPos(w,h);
+      onScreen = { ...pos, w, h, tall, onset_perf_ms: performance.now() };
+      drawAll();
+    }
+
+    function drawAll(){
+      // background first, then probe with alpha = contrast
+      drawBackground();
+      if (onScreen){
+        drawProbeRect(onScreen.x, onScreen.y, onScreen.w, onScreen.h, contrast);
+      }
+      if (waitingForSpace){
+        ctx.fillStyle = 'rgba(255,255,255,.95)';
+        ctx.font = '20px system-ui'; ctx.textAlign='center';
+        ctx.fillText('Press SPACE to start Phase B', canvas.width/2, Math.round(canvas.height*0.5));
+      }
+    }
+
+    const finish = ()=>{
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', resize);
+      document.body.classList.remove('fullblack');
+
+      const entries = [...perLevel.entries()].sort((a,b)=>a[0]-b[0])
+        .map(([c,obj])=>({ contrast:c, n:obj.n, correct:obj.correct, acc: obj.correct/obj.n }));
+      // crude threshold: smallest contrast achieving ≥ TARGET_ACC
+      let chosen = entries.length ? entries[0].contrast : trial.start_contrast;
+      for (const e of entries){
+        if (e.acc >= MODEL_OPTS.TARGET_ACC){ chosen = e.contrast; break; }
+      }
+
+      // store & end
+      jsPsych.data.addProperties({ PHASE_B_CONTRAST: { byContrast: entries, chosen_contrast: chosen } });
+      this.jsPsych.finishTrial({
+        phase: 'B',
+        byContrast: entries,
+        chosen_contrast: chosen
+      });
+    };
+
+    function onKey(e){
+      const k = e.key.toLowerCase();
+      if (waitingForSpace){
+        if (k === ' ') { waitingForSpace = false; newProbe(); }
+        return;
+      }
+      if (!onScreen) return;
+      if (!trial.response_keys.includes(k)) return;
+
+      const isTall = onScreen.h > onScreen.w;
+      const correctKey = isTall ? 'j' : 'f';
+      const isCorrect = (k === correctKey);
+
+      totalTrials += 1;
+      if (isCorrect) consecCorrect += 1; else consecCorrect = 0;
+      recordLevel(isCorrect);
+      adaptIfNeeded();
+
+      onScreen = null;
+      if (totalTrials >= trial.max_trials) {
+        finish();
+      } else {
+        newProbe();
+      }
+    }
+
+    // start
+    const drawAllBound = ()=>drawAll();
+    function start(){
+      layoutShell();
+      const r = shell.getBoundingClientRect(); canvas.width = Math.round(r.width); canvas.height = Math.round(r.height);
+      drawAll();
+      window.addEventListener('resize', resize);
+      window.addEventListener('keydown', onKey);
+    }
+    start();
+  }
+}
+
+
+
+
+
+// =============================
+// Phase C: PracticeMotionBackground
+// 4 grey balls move; elastic collisions (walls + between balls).
+// Logs probe context: nearest distance to a ball and whether a collision occurred recently.
+// =============================
+class PracticeMotionBackground { constructor(jsPsych){ this.jsPsych = jsPsych; }
+  static info = { name:'practice-motion-background', parameters:{
+    require_space_to_start: { default: true },
+    response_keys: { default: ['f','j'] },
+    bounds: { default: {xMinFrac:1/16,xMaxFrac:15/16,yMinFrac:1/9,yMaxFrac:8/9} },
+    probe_size_px: { default: { w: 25, h: 15 } },
+    balls_n: { default: 4 },
+    ball_radius: { default: 25 },        // 50 px diameter
+    ball_speed: { default: 70 },         // px/s
+    recent_ms_collision: { default: 800 }, // mark if a collision occurred in last N ms
+    max_trials: { default: 60 },
+  }};
+
+  trial(display_element, trial){
+    document.body.classList.add('fullblack');
+
+    // layout
+    const wrap = document.createElement('div'); wrap.className='trial-wrap'; wrap.style.cssText='display:flex;align-items:center;justify-content:center;width:100vw;height:100vh;background:#000;';
+    const shell = document.createElement('div'); shell.className='video-shell'; wrap.appendChild(shell);
+    const canvas = document.createElement('canvas'); canvas.className='overlay'; canvas.style.width='100%'; canvas.style.height='100%'; shell.appendChild(canvas);
+    display_element.innerHTML=''; display_element.appendChild(wrap);
+
+    const hud = document.createElement('div'); hud.className='hud';
+    hud.innerHTML = `<p style="color:#e5e7eb">Phase C: <b>Moving circles</b>. J=tall, F=wide. Press <b>SPACE</b> to start.</p>`;
+    display_element.appendChild(hud);
+
+    const ctx = canvas.getContext('2d');
+
+    function layoutShell(){
+      const vw=window.innerWidth, vh=window.innerHeight;
+      const maxW = Math.min(vw, Math.floor(vh*16/9));
+      const desiredW = maxW, desiredH = Math.round(desiredW*9/16);
+      shell.style.width = desiredW+'px'; shell.style.height = desiredH+'px';
+    }
+    const resize = ()=>{ layoutShell(); const r=shell.getBoundingClientRect(); canvas.width=Math.max(1,Math.round(r.width)); canvas.height=Math.max(1,Math.round(r.height)); };
+
+    // balls
+    let balls = [];
+    function initBalls(){
+      balls = [];
+      const r = trial.ball_radius;
+      for (let i=0;i<trial.balls_n;i++){
+        // random non-overlapping-isH_Start
+        let x, y, ok=false, attempts=0;
+        while(!ok && attempts<1000){
+          attempts++;
+          x = r + Math.random()*(canvas.width - 2*r);
+          y = r + Math.random()*(canvas.height - 2*r);
+          ok = balls.every(b => ((b.x-x)**2 + (b.y-y)**2) > (2*r+5)**2);
+        }
+        // random direction
+        const ang = Math.random()*Math.PI*2;
+        const vx = Math.cos(ang) * trial.ball_speed;
+        const vy = Math.sin(ang) * trial.ball_speed;
+        balls.push({ x, y, vx, vy });
+      }
+    }
+
+    function drawBalls(){
+      ctx.save();
+      ctx.fillStyle = '#666';
+      for (const b of balls){
+        ctx.beginPath(); ctx.arc(b.x, b.y, trial.ball_radius, 0, Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+      // grey border
+      ctx.strokeStyle = '#777'; ctx.lineWidth = 4; ctx.strokeRect(2,2,canvas.width-4,canvas.height-4);
+    }
+
+    // physics step (dt in seconds)
+    let lastStep = null;
+    let lastCollisionMs = -Infinity;
+
+    function stepPhysics(now){
+      if (!lastStep) { lastStep = now; return; }
+      const dt = Math.max(0, (now - lastStep)/1000);
+      lastStep = now;
+      const r = trial.ball_radius;
+
+      // wall collisions
+      for (const b of balls){
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+
+        if (b.x < r){ b.x = r; b.vx = Math.abs(b.vx); lastCollisionMs = performance.now(); }
+        if (b.x > canvas.width - r){ b.x = canvas.width - r; b.vx = -Math.abs(b.vx); lastCollisionMs = performance.now(); }
+        if (b.y < r){ b.y = r; b.vy = Math.abs(b.vy); lastCollisionMs = performance.now(); }
+        if (b.y > canvas.height - r){ b.y = canvas.height - r; b.vy = -Math.abs(b.vy); lastCollisionMs = performance.now(); }
+      }
+
+      // ball-ball elastic collisions (equal mass)
+      for (let i=0;i<balls.length;i++){
+        for (let j=i+1;j<balls.length;j++){
+          const a = balls[i], b = balls[j];
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const dist = Math.hypot(dx,dy);
+          const minDist = 2*r;
+          if (dist < minDist && dist > 0){
+            // resolve overlap
+            const overlap = (minDist - dist)/2;
+            const nx = dx / dist, ny = dy / dist;
+            a.x -= nx*overlap; a.y -= ny*overlap;
+            b.x += nx*overlap; b.y += ny*overlap;
+
+            // velocities along_Normal
+            const va = a.vx*nx + a.vy*ny;
+            const vb = b.vx*nx + b.vy*ny;
+            // swap_Normal components (perfectly elastic, equal mass)
+            const va_after = vb, vb_after = va;
+            // tangential components
+            const tax = a.vx - va*nx, tay = a.vy - va*ny;
+            const tbx = b.vx - vb*nx, tby = b.vy - vb*ny;
+
+            a.vx = tax + va_after*nx; a.vy = tay + va_after*ny;
+            b.vx = tbx + vb_after*nx; b.vy = tby + vb_after*ny;
+
+            lastCollisionMs = performance.now();
+          }
+        }
+      }
+    }
+
+    // probe logic
+    const {xMinFrac,xMaxFrac,yMinFrac,yMaxFrac} = trial.bounds;
+    function pickPos(w,h){
+      const xMin = Math.round(xMinFrac*canvas.width) + w/2;
+      const xMax = Math.round(xMaxFrac*canvas.width) - w/2;
+      const yMin = Math.round(yMinFrac*canvas.height) + h/2;
+      const yMax = Math.round(yMaxFrac*canvas.height) - h/2;
+      return { x: Math.round(xMin + Math.random()*(xMax-xMin)), y: Math.round(yMin + Math.random()*(yMax-yMin)) };
+    }
+    function drawProbeRect(x,y,w,h){
+      ctx.save();
+      ctx.fillStyle = 'red';
+      ctx.fillRect(Math.round(x-w/2), Math.round(y-h/2), w, h);
+      ctx.restore();
+    }
+    function nearestBallDistance(x,y){
+      let best = Infinity;
+      for (const b of balls){
+        const d = Math.hypot(b.x - x, b.y - y) - trial.ball_radius;
+        if (d < best) best = d;
+      }
+      return best; // can be negative if overlapping (shouldn’t happen with our bounds)
+    }
+
+    let onScreen = null, waitingForSpace = !!trial.require_space_to_start;
+    let totalTrials = 0;
+    const perTrial = []; // store context rows
+
+    function newProbe(){
+      const tall = Math.random() < 0.5;
+      const w = tall ? trial.probe_size_px.w : trial.probe_size_px.h;
+      const h = tall ? trial.probe_size_px.h : trial.probe_size_px.w;
+      const pos = pickPos(w,h);
+      onScreen = { ...pos, w, h, tall, onset_perf_ms: performance.now() };
+
+      // snapshot context
+      const nearest = nearestBallDistance(pos.x, pos.y);
+      const sinceCol = performance.now() - lastCollisionMs;
+      const nearCollision = Number.isFinite(sinceCol) && (sinceCol >=0) && (sinceCol <= trial.recent_ms_collision);
+      perTrial.push({
+        idx: totalTrials+1,
+        tall,
+        x: pos.x, y: pos.y,
+        nearest_ball_px: Math.round(nearest),
+        recent_collision_ms: Number.isFinite(sinceCol)? Math.round(sinceCol) : null,
+        near_collision_flag: !!nearCollision
+      });
+    }
+
+    function drawAll(now){
+      // animate bg
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      stepPhysics(now);
+      drawBalls();
+      if (onScreen) drawProbeRect(onScreen.x, onScreen.y, onScreen.w, onScreen.h);
+      if (waitingForSpace){
+        ctx.fillStyle = 'rgba(255,255,255,.95)';
+        ctx.font = '20px system-ui'; ctx.textAlign='center';
+        ctx.fillText('Press SPACE to start Phase C', canvas.width/2, Math.round(canvas.height*0.5));
+      }
+    }
+
+    let rafId=null;
+    function loop(now){ drawAll(now||performance.now()); rafId = requestAnimationFrame(loop); }
+
+    const finish = ()=>{
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('keydown', onKey);
+      document.body.classList.remove('fullblack');
+
+      jsPsych.data.addProperties({ PHASE_C_MOTION: { trials: perTrial } });
+      this.jsPsych.finishTrial({ phase:'C', trials: perTrial });
+    };
+
+    function onKey(e){
+      const k = e.key.toLowerCase();
+      if (waitingForSpace){
+        if (k === ' ') { waitingForSpace = false; newProbe(); }
+        return;
+      }
+      if (!onScreen) return;
+      if (!trial.response_keys.includes(k)) return;
+
+      const isTall = onScreen.h > onScreen.w;
+      const correctKey = isTall ? 'j' : 'f';
+      const isCorrect = (k === correctKey);
+
+      // tag last perTrial row with outcome & RT
+      const row = perTrial[perTrial.length-1];
+      if (row){
+        row.key = k;
+        row.correct = !!isCorrect;
+        row.rt_ms = Math.round(performance.now() - onScreen.onset_perf_ms);
+      }
+
+      totalTrials += 1;
+      onScreen = null;
+      if (totalTrials >= trial.max_trials) {
+        finish();
+      } else {
+        newProbe();
+      }
+    }
+
+    // start
+    function start(){
+      layoutShell();
+      const r = shell.getBoundingClientRect(); canvas.width = Math.round(r.width); canvas.height = Math.round(r.height);
+      initBalls();
+      lastStep = performance.now();
+      window.addEventListener('resize', resize);
+      window.addEventListener('keydown', onKey);
+      rafId = requestAnimationFrame(loop);
+    }
+    start();
+  }
+}
+
+
+
+
+
+// =============================
+// Comprehension check (text-only, 4 candidates per video)
+// =============================
+function comprehensionCheck(videoSrc){
+  // videoSrc looks like "videos/ANS_Feature.mp4" → we want the filename only
+  const vidName = String(videoSrc).split('/').pop();
+  const bank = questionBank[vidName];
+
+  // Guard: if no entry or no text questions, skip the check for this video
+  if (!bank || !Array.isArray(bank.text) || bank.text.length === 0) {
+    console.warn('[comprehensionCheck] No text questions for', vidName);
+    return null;
+  }
+
+  // Pick ONE of the 4 text questions at random
+  const entry = jsPsych.randomization.sampleWithoutReplacement(bank.text, 1)[0];
+
+  // Ensure exactly two options and shuffle onto F/J
+  const opts = Array.isArray(entry.options) ? entry.options.slice(0, 2) : [];
+  if (opts.length < 2) {
+    console.warn('[comprehensionCheck] Not enough options for', vidName, entry);
+    return null;
+  }
+  const shuffled = jsPsych.randomization.shuffle(opts);
+  const [optF, optJ] = shuffled;
+
+  // Build simple text-only UI
+  const stim = `
+    <div style="color:#e5e7eb;max-width:900px;margin:0 auto;text-align:center">
+      <h3 style="line-height:1.35">${entry.prompt}</h3>
+      <div style="display:flex;justify-content:center;gap:40px;margin-top:32px">
+        <div style="flex:1;max-width:440px">
+          <div style="margin-bottom:8px">Press <kbd>F</kbd></div>
+          <div style="padding:12px;border:1px solid #555;border-radius:8px">${optF}</div>
+        </div>
+        <div style="flex:1;max-width:440px">
+          <div style="margin-bottom:8px">Press <kbd>J</kbd></div>
+          <div style="padding:12px;border:1px solid #555;border-radius:8px">${optJ}</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  return {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: stim,
+    choices: ['f','j'],
+    data: {
+      comprehension_check: true,
+      video: vidName,
+      prompt: entry.prompt,
+      optionF: optF,
+      optionJ: optJ
+    },
+  on_load: () => {
+    // swallow keydowns before jsPsych sees them
+    const gate = (e) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    };
+    window.addEventListener('keydown', gate, true); // capture phase
+
+    // (optional) visually mute choices during the lockout
+    // const choiceBoxes = document.querySelectorAll('[data-choice-box]');
+    // choiceBoxes.forEach(el => el.style.opacity = 0.5);
+
+    setTimeout(() => {
+      window.removeEventListener('keydown', gate, true);
+      // choiceBoxes.forEach(el => el.style.opacity = 1);
+    }, 1500);
+  },
+    on_finish: (data) => {
+      // jsPsych v7 stores the pressed key as a string in data.response
+      const k = (data.response || '').toLowerCase();
+      data.choice_key = k;
+      data.choice_text = (k === 'f') ? data.optionF : (k === 'j') ? data.optionJ : null;
+    }
+  };
+}
+
+
+
+const questionBank = {
+  "ANS_Feature.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, in the end:", options: ["ten balls were revealed", "five balls were revealed"] },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed some balls on the stage", "placed a toy animal on the stage"] },
+    ]
+  },
+  "ANS_Modulation.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, in the end:", options: ["ten balls were revealed", "five balls were revealed"] },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed some balls on the stage", "placed a toy animal on the stage"] },
+    ]
+  },
+  "ANS_Normal.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, in the end:", options: ["ten balls were revealed", "five balls were revealed"] },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed some balls on the stage", "placed a toy animal on the stage"] },
+    ]
+  },
+  "ANS_VOE.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, in the end:", options: ["ten balls were revealed", "five balls were revealed"] },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed some balls on the stage", "placed a toy animal on the stage"] },
+    ]
+  },
+  "Continuity_Feature.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["reappeared from the left screen", "reappeared from the right screen"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two screens on the stage"] },
+    ]
+  },
+  "Continuity_Modulation.mp4": {
+    text: [
+     { prompt: "Description: In the event you just saw, a cylinder:", options: ["reappeared from the left screen", "reappeared from the right screen"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two screens on the stage"] },
+    ]
+  },
+  "Continuity_Normal.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["reappeared from the left screen", "reappeared from the right screen"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two screens on the stage"] },
+    ]
+  },
+  "Continuity_VOE.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["reappeared from the left screen", "reappeared from the right screen"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two screens on the stage"] },
+    ]
+  },
+  "H_Solidity_Feature.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] },
+      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+    ]
+  },
+  "H_Solidity_Modulation.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] },
+      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+    ]
+  },
+  "H_Solidity_Normal.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] },
+      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+    ]
+  },
+  "H_Solidity_VOE.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] },
+      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+    ]
+  },
+  "Solidity_Feature.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a tall screen on the stage", "placed two small screens on the stage"] },
+    ]
+  },
+  "Solidity_Modulation.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a tall screen on the stage", "placed two small screens on the stage"] },
+    ]
+  },
+  "Solidity_Normal.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a tall screen on the stage", "placed two small screens on the stage"] },
+    ]
+  },
+  "Solidity_VOE.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a tall screen on the stage", "placed two small screens on the stage"] },
+    ]
+  },
+  "Support_Feature.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"] },
+      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+    ]
+  },
+  "Support_Modulation.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"] },
+      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+    ]
+  },
+  "Support_Normal.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"] },
+      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+    ]
+  },
+  "Support_VOE.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"] },
+      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+    ]
+  },
+  "Wynn_Feature.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, in the end:", options: ["two toy animals sat on the stage", "one toy animal sat on the stage"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"] },
+    ]
+  },
+  "Wynn_Modulation.mp4": {
+    text: [
+       { prompt: "Description: In the event you just saw, in the end:", options: ["two toy animals sat on the stage", "one toy animal sat on the stage"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"] },
+    ]
+  },
+  "Wynn_Normal.mp4": {
+    text: [
+       { prompt: "Description: In the event you just saw, in the end:", options: ["two toy animals sat on the stage", "one toy animal sat on the stage"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"] },
+    ]
+  },
+  "Wynn_VOE.mp4": {
+    text: [
+       { prompt: "Description: In the event you just saw, in the end:", options: ["two toy animals sat on the stage", "one toy animal sat on the stage"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"] },
+    ]
+  },
+"RollingContinuity_Feature.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["reappeared from the left screen", "reappeared from the right screen"] },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two small screens on the stage"] },
+    ]
+  },
+  "RollingContinuity_Modulation.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["reappeared from the left screen", "reappeared from the right screen"] },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two small screens on the stage"] },
+    ]
+  },
+  "RollingContinuity_Normal.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["reappeared from the left screen", "reappeared from the right screen"] },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two small screens on the stage"] },
+    ]
+  },
+  "RollingContinuity_VOE.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["reappeared from the left screen", "reappeared from the right screen"] },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two small screens on the stage"] },
+    ]
+  },
+
+"Filler1.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+    ]
+  },
+"Filler2.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+    ]
+  },
+"Filler3.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+    ]
+  },
+"Filler4.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+    ]
+  },
+"Filler5.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] },
+    ]
+  },
+"Filler6.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] },
+    ]
+  },
+"Filler7.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] },
+    ]
+  },
+"Filler8.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] },
+    ]
+  },
+
+"Filler9.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+    ]
+  },
+"Filler10.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+    ]
+  },
+"Filler11.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+    ]
+  },
+"Filler12.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+    ]
+  },
+"Filler13.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was brushed by something", "was knocked by a hand"] },
+    ]
+  },
+"Filler14.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was brushed by something", "was knocked by a hand"] },
+    ]
+  },
+"Filler15.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was brushed by something", "was knocked by a hand"] },
+    ]
+  },
+"Filler16.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was brushed by something", "was knocked by a hand"] },
+    ]
+  },
+};
+
+// =============================
+// Video + Probe plugin
+// =============================
+class VideoProbeDetect { constructor(jsPsych){ this.jsPsych = jsPsych; }
+  static info = { 
+name:'video-probe-detect', 
+parameters:{ 
+  	stimulus:{default:undefined}, 
+  	autoplay:{default:true}, 
+	controls:{default:false}, 
+	trial_ends_after_video:{default:true}, 
+	response_keys:{default:['f','j']}, 
+	min_soa:{default:500}, 
+	max_soa:{default:1000}, 
+	probe_duration:{default:1000}, 
+	probe_color:{default:'red'}, 
+	sizes:{default:[{w:15,h:25},{w:25,h:15}]}, 
+	sizes_mm:{default:null}, 
+	bounds:{default:{xMinFrac:1/16,xMaxFrac:15/16,yMinFrac:1/9,yMaxFrac:8/9}}, 
+	prompt:{default:''}, 
+	data_tag:{default:''} 
+     } 
+   };
+ 
+ trial(display_element, trial){
+    document.body.classList.add('fullblack'); 
+    const container = document.createElement('div'); container.className='trial-wrap';
+    const shell = document.createElement('div'); shell.className='video-shell'; container.appendChild(shell);
+
+    const vid = document.createElement('video'); vid.setAttribute('playsinline',''); vid.controls=false; vid.muted=true; vid.setAttribute('muted',''); if(trial.autoplay) vid.setAttribute('autoplay','');
+    (trial.stimulus||[]).forEach(src=>{ const s=document.createElement('source'); s.src=src; s.addEventListener('error',()=>console.error('SOURCE failed to load:',s.src)); vid.appendChild(s); });
+    shell.appendChild(vid);
+
+    const overlay = document.createElement('canvas'); overlay.className='overlay'; shell.appendChild(overlay);
+    display_element.innerHTML=''; display_element.appendChild(container);
+    if (trial.prompt){ const hud=document.createElement('div'); hud.className='hud'; hud.innerHTML=trial.prompt; display_element.appendChild(hud); }
+
+    const ctx = overlay.getContext('2d'); let probe=null, nextTimer=null, trialStartPerf=null, ended=false; const events=[];
+
+    // Convert sizes
+    let sizesPx = trial.sizes; const px_per_mm = getPxPerMm();
+    if (TRIAL_DEFAULTS.use_mm && trial.sizes_mm && px_per_mm) {
+      sizesPx = trial.sizes_mm.map(s=>({ w:Math.max(1,Math.round(s.w*px_per_mm)), h:Math.max(1,Math.round(s.h*px_per_mm)) }));
+    }
+
+    // Layout function: fullscreen on laptops; cap on huge screens if enabled
+    function layoutShell(){
+      const vw=window.innerWidth, vh=window.innerHeight; const maxW=Math.min(vw, Math.floor(vh*16/9));
+      let desiredW = maxW;
+      if (VIDEO_LAYOUT.ENABLE_TARGET_MM && px_per_mm){ const targetW = Math.round(VIDEO_LAYOUT.TARGET_WIDTH_MM * px_per_mm); desiredW = Math.min(maxW, targetW); }
+      const desiredH = Math.round(desiredW * 9/16); shell.style.width=desiredW+'px'; shell.style.height=desiredH+'px';
+    }
+
+    const clearCanvas=()=>ctx.clearRect(0,0,overlay.width,overlay.height);
+    const draw=()=>{ clearCanvas(); if(probe){ ctx.fillStyle = trial.probe_color; ctx.fillRect(Math.round(probe.x-probe.w/2), Math.round(probe.y-probe.h/2), probe.w, probe.h); } };
+    const randInt=(a,b)=>Math.floor(Math.random()*(b-a+1))+a; const randFloat=(a,b)=>Math.random()*(b-a)+a; const choose=arr=>arr[Math.floor(Math.random()*arr.length)];
+
+    const resizeCanvasToVideo=()=>{ layoutShell(); const rect=shell.getBoundingClientRect(); overlay.width=Math.max(1,Math.round(rect.width)); overlay.height=Math.max(1,Math.round(rect.height)); draw(); };
+
+    function pickProbe(){ const size=choose(sizesPx); const w=size.w,h=size.h; const xMin=Math.round(trial.bounds.xMinFrac*overlay.width)+w/2; const xMax=Math.round(trial.bounds.xMaxFrac*overlay.width)-w/2; const yMin=Math.round(trial.bounds.yMinFrac*overlay.height)+h/2; const yMax=Math.round(trial.bounds.yMaxFrac*overlay.height)-h/2; const x=Math.round(randFloat(xMin,xMax)); const y=Math.round(randFloat(yMin,yMax)); return {x,y,w,h}; }
+
+    // Optional adaptive cadence
+
+let minSOA = trial.min_soa, maxSOA = trial.max_soa;
+
+function msNow(){ return performance.now(); }
+	 // Defensive video duration helper
+function msVideoTotal(){
+  // Case 1: metadata is valid and finite
+  if (isFinite(vid.duration) && vid.duration > 0){
+    return vid.duration * 1000;
+  }
+
+  // Case 2: fallback — approximate with elapsed playback so far
+  if (typeof trialStartPerf === 'number'){
+    return performance.now() - trialStartPerf;
+  }
+
+  // Case 3: nothing reliable yet — treat as "infinite" so probes don’t end early
+  return Infinity;
+}
+
+// Current playback time in ms (safe)
+function msVideo(){
+  if (!vid || vid.paused && !vid.currentTime) return 0;
+  return vid.currentTime * 1000;
+}
+	 
+const MIN_ONSCREEN_MS = 33; // ~1 frame
+
+function scheduleNextProbe(jitterMs){
+  cancelNextProbe();
+  if (ended) return;
+
+  const d = (typeof jitterMs === 'number') ? jitterMs : randInt(minSOA, maxSOA);
+  let remain = msVideoTotal() - msVideo();
+
+  if (!isFinite(remain) || remain <= 0) {
+    // duration not ready or video basically done
+    return;
+  }
+
+  // Clamp the delay so we never exceed remaining video time
+  const delay = Math.min(d, remain - MIN_ONSCREEN_MS);
+
+  if (delay < MIN_ONSCREEN_MS) {
+    // very near end: flash one more probe immediately
+    showProbe();
+    return;
+  }
+
+  nextTimer = setTimeout(() => {
+    if (!ended) showProbe();
+  }, delay);
+}
+
+function cancelNextProbe(){ if(nextTimer){ clearTimeout(nextTimer); nextTimer=null; } }
+
+function showProbe(){
+  if (ended || !trialStartPerf) return;
+
+  const nowVidMs   = msVideo();
+  const totalVidMs = msVideoTotal();
+  const remainMs   = totalVidMs - nowVidMs;
+
+  if (remainMs < MIN_ONSCREEN_MS) {
+  // still allow a probe, just shorten its lifetime
+  dur = remainMs;
+}
+
+  const pos = pickProbe();
+  const onset_video_ms = msVideo();
+  const onset_perf_ms  = msNow();
+
+  // Clamp lifetime to remaining video time (leave a few ms for cleanup)
+  const dur = Math.min(trial.probe_duration, Math.max(0, (totalVidMs - onset_video_ms) - 8));
+
+  probe = { ...pos, onset_video_ms, onset_perf_ms, timeout_id: null };
+  draw();
+
+  events.push({
+    type: 'probe',
+    x: probe.x, y: probe.y, w: probe.w, h: probe.h,
+    onset_video_ms: Math.round(onset_video_ms),
+    onset_trial_ms: Math.round(onset_perf_ms - trialStartPerf)
+  });
+
+  if (dur >= MIN_ONSCREEN_MS) {
+    probe.timeout_id = setTimeout(() => {
+      if (!probe) return; // already hit/cleared
+      events.push({
+        type: 'miss',
+        x: probe.x, y: probe.y, w: probe.w, h: probe.h,
+        onset_video_ms: Math.round(probe.onset_video_ms),
+        onset_trial_ms: Math.round(probe.onset_perf_ms - trialStartPerf)
+      });
+      probe = null; draw();
+      scheduleNextProbe();
+    }, dur);
+  }
+}
+
+    function clearProbeVisualOnly(){ if(probe){ if(probe.timeout_id) clearTimeout(probe.timeout_id); probe=null; draw(); } }
+
+    const onKeydown = (e)=>{
+      const key=e.key.toLowerCase(); if(!trial.response_keys.includes(key)) return; if(!trialStartPerf||ended) return; const press_perf=performance.now(); const press_video_ms=vid.currentTime*1000;
+      if(probe){ const rt=press_perf-probe.onset_perf_ms; events.push({type:'hit',key,rt_ms:Math.round(rt),x:probe.x,y:probe.y,w:probe.w,h:probe.h,onset_video_ms:Math.round(probe.onset_video_ms),onset_trial_ms:Math.round(probe.onset_perf_ms-trialStartPerf),press_video_ms:Math.round(press_video_ms),press_trial_ms:Math.round(press_perf-trialStartPerf)}); if(probe.timeout_id) clearTimeout(probe.timeout_id); probe=null; draw();
+        if (OPTIONS.ADAPTIVE_CADENCE){ const recent=events.filter(ev=>ev.type==='hit'||ev.type==='miss').slice(-OPTIONS.ADAPTIVE_WINDOW); const missRate = recent.length? recent.filter(ev=>ev.type==='miss').length/recent.length : 0; if(missRate>0.4){ minSOA=Math.max(OPTIONS.ADAPTIVE_MIN, minSOA-OPTIONS.ADAPTIVE_DELTA); maxSOA=Math.max(minSOA+50, maxSOA-OPTIONS.ADAPTIVE_DELTA);} else if(missRate<0.1){ minSOA=Math.min(maxSOA-50, minSOA+OPTIONS.ADAPTIVE_DELTA); maxSOA=Math.min(OPTIONS.ADAPTIVE_MAX, maxSOA+OPTIONS.ADAPTIVE_DELTA);} }
+        scheduleNextProbe();
+      } else {
+        if (OPTIONS.FA_REFRACTORY_MS>0){ const last=[...events].reverse().find(ev=>ev.type==='probe'||ev.type==='miss'||ev.type==='hit'); const near = last ? (press_perf - (last.onset_trial_ms + trialStartPerf)) : Infinity; if(near>=0 && near<OPTIONS.FA_REFRACTORY_MS){ events.push({type:'late_hit_window',key,press_video_ms:Math.round(press_video_ms),press_trial_ms:Math.round(press_perf-trialStartPerf)}); return; } }
+        events.push({type:'false_alarm',key,press_video_ms:Math.round(press_video_ms),press_trial_ms:Math.round(press_perf-trialStartPerf)});
+      }
+    };
+
+    let keyListener=false; const attach=()=>{ if(!keyListener){ keyListener=true; window.addEventListener('keydown', onKeydown);} }; const detach=()=>{ if(keyListener){ keyListener=false; window.removeEventListener('keydown', onKeydown);} };
+
+
+    // after video element creation
+vid.preload = 'auto';
+vid.playsInline = true;           // already set via attribute, set property too
+vid.muted = true;
+
+// --- helper: wait for first actual rendered frame ---
+function waitForFirstFrame(video){
+  return new Promise((resolve) => {
+    if (!video.paused && video.readyState >= 2 && video.currentTime > 0){
+      requestAnimationFrame(()=>resolve());
+      return;
+    }
+    let resolved = false, rvfc = null;
+    const cleanup = () => {
+      ['playing','timeupdate','seeked','loadeddata','canplay'].forEach(ev =>
+        video.removeEventListener(ev, onProgress)
+      );
+      if (rvfc && 'cancelVideoFrameCallback' in video) video.cancelVideoFrameCallback(rvfc);
+    };
+    const onProgress = () => {
+      if (resolved) return;
+      if (!video.paused && video.readyState >= 2){
+        if ('requestVideoFrameCallback' in video){
+          rvfc = video.requestVideoFrameCallback(() => {
+            resolved = true; cleanup(); resolve();
+          });
+        } else if (video.currentTime > 0){
+          resolved = true; cleanup(); resolve();
+        }
+      }
+    };
+    ['playing','timeupdate','seeked','loadeddata','canplay'].forEach(ev =>
+      video.addEventListener(ev, onProgress)
+    );
+    onProgress(); // kick in case we're already mid-state
+  });
+}
+
+// keep your existing resize function:
+vid.addEventListener('loadedmetadata', resizeCanvasToVideo);
+
+// pause/resume probes around stalls or tab hides
+function pauseProbes(){
+  cancelNextProbe();
+  clearProbeVisualOnly();
+}
+function resumeProbes(){
+  if (!ended && trialStartPerf){
+    scheduleNextProbe(randInt(200, 400));
+  }
+}
+
+
+
+
+
+const endTrial = () => {
+  if (ended || !started) return;
+  ended = true;
+  if (onEnded){ vid.removeEventListener('ended', onEnded); onEnded = null; }
+
+  // If a probe is visible when the clip ends, count it
+  if (probe) {
+    events.push({
+      type: 'miss_end',
+      x: probe.x, y: probe.y, w: probe.w, h: probe.h,
+      onset_video_ms: Math.round(probe.onset_video_ms),
+      onset_trial_ms: Math.round(probe.onset_perf_ms - trialStartPerf)
+    });
+    clearProbeVisualOnly();
+  }
+
+  pauseProbes();
+  detach();
+  window.removeEventListener('resize', resizeCanvasToVideo);
+  document.body.classList.remove('fullblack');
+
+  const dur_ms = (vid.duration && isFinite(vid.duration) && vid.duration > 0)
+    ? Math.round(vid.duration * 1000)
+    : Math.round(msNow() - trialStartPerf);
+
+  const trial_data = {
+    plugin: 'video-probe-detect',
+    video_src: trial.stimulus?.[0] || '',
+    data_tag: trial.data_tag || '',
+    video_duration_ms: dur_ms,
+    overlay_width: overlay.width,
+    overlay_height: overlay.height,
+    bounds: trial.bounds,
+    minSOA, maxSOA, sizesPx, px_per_mm,
+    events
+  };
+  display_element.innerHTML = '';
+  this.jsPsych.finishTrial(trial_data);
+};
+
+
+
+vid.addEventListener('waiting',  pauseProbes);
+vid.addEventListener('stalled',  pauseProbes);
+vid.addEventListener('suspend',  pauseProbes);
+vid.addEventListener('seeking',  pauseProbes);
+vid.addEventListener('playing',  resumeProbes);
+document.addEventListener('visibilitychange', ()=>{
+  if (document.hidden) pauseProbes(); else resumeProbes();
+});
+vid.addEventListener('pause',   ()=>{ vid.play().catch(()=>{}); });
+vid.addEventListener('seeking', ()=>{ vid.play().catch(()=>{}); });
+
+// start once a real frame is on-screen
+let started = false;
+
+
+
+
+let onEnded = null;
+
+async function startTrialAfterFirstFrame(){
+  resizeCanvasToVideo();
+  window.addEventListener('resize', resizeCanvasToVideo);
+  await waitForFirstFrame(vid);
+  trialStartPerf = performance.now();
+  started = true;
+  attach();
+  setTimeout(() => scheduleNextProbe(), 150); // tiny guard to avoid probe on frame 1
+  onEnded = () => endTrial();
+  if (trial.trial_ends_after_video) vid.addEventListener('ended', onEnded);
+}
+
+
+
+// kick off load and playback
+vid.currentTime = 0;
+vid.load();
+if (trial.autoplay) {
+  vid.play().then(() => {
+    startTrialAfterFirstFrame();
+  }).catch(err => {
+    console.warn('Autoplay blocked; waiting for user gesture.', err);
+    // user will click; on first play, start after first frame
+    vid.addEventListener('play', () => startTrialAfterFirstFrame(), { once: true });
+  });
+} else {
+  vid.addEventListener('play', () => startTrialAfterFirstFrame(), { once: true });
+}
+
+  }
+}
+
+// =============================
+// Summary screen
+// =============================
+class VideoSummary { constructor(jsPsych){ this.jsPsych = jsPsych; }
+  static info = { name:'video-summary', parameters:{} };
+  trial(display_element){
+    const last = this.jsPsych.data.get().last(1).values()[0]||{}; const ev=last.events||[]; const hits=ev.filter(e=>e.type==='hit').length; const misses=ev.filter(e=>e.type==='miss').length; const fas=ev.filter(e=>e.type==='false_alarm').length; const rts=ev.filter(e=>e.type==='hit').map(e=>e.rt_ms); const med = rts.length ? rts.sort((a,b)=>a-b)[Math.floor(rts.length/2)] : null;
+    display_element.innerHTML = `<div style="color:#e5e7eb;font:16px system-ui;text-align:center;padding:60px 0"><div style="font-size:22px;margin-bottom:10px">Segment Summary</div><div>Hits: <b>${hits}</b> • Misses: <b>${misses}</b> • False Alarms: <b>${fas}</b></div><div style="opacity:.8;margin-top:6px">Median RT: <b>${med??'—'} ms</b></div></div>`;
+    setTimeout(()=> this.jsPsych.finishTrial({hits,misses,fas,median_rt:med}), 1200);
+  }
+}
+
+// =============================
+// End screen with downloads
+// =============================
+class DownloadScreen { constructor(jsPsych){ this.jsPsych = jsPsych; }
+  static info = { name:'download-screen', parameters:{} };
+  trial(display_element){
+    display_element.innerHTML = `<div style="color:#e5e7eb;max-width:800px;margin:80px auto;text-align:center;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"><h2 style="font-size:28px;margin-bottom:16px">All done</h2><p style="opacity:.85;margin-bottom:24px">Download your data in CSV or JSON.</p><div style="display:flex;gap:12px;justify-content:center;margin-bottom:24px"><button id="dlcsv" style="padding:10px 14px;border-radius:10px;background:#2563eb;color:#fff;border:none;cursor:pointer">Download CSV</button><button id="dljson" style="padding:10px 14px;border-radius:10px;background:#10b981;color:#fff;border:none;cursor:pointer">Download JSON</button></div><button id="finish" style="padding:8px 12px;border-radius:10px;background:#374151;color:#fff;border:none;cursor:pointer">Finish</button></div>`;
+
+
+
+
+const dlcsv  = display_element.querySelector('#dlcsv');
+const dljson = display_element.querySelector('#dljson');
+const finish = display_element.querySelector('#finish');
+
+// CSV (built-in helper is fine)
+dlcsv.addEventListener('click', () => {
+  this.jsPsych.data.get().localSave('csv', 'probe_data.csv');
+});
+
+dljson.addEventListener('click', () => {
+  try {
+    const jsonStr = this.jsPsych.data.get().json();
+      // …or pretty-print for readability:
+      // const jsonStr = JSON.stringify(this.jsPsych.data.get().values(), null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = Object.assign(document.createElement('a'), { href: url, download: 'probe_data.json' });
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  } catch (e) {
+    console.error('JSON download failed:', e);
+    alert('Could not create JSON file. Check console for details.');
+  }
+});
+
+finish.addEventListener('click', () => this.jsPsych.finishTrial({}));
+}
+}
+
+
+
+// Quick debug hotkey: press D to download CSV anytime
+window.addEventListener('keydown', (e)=>{ if(e.key==='D') jsPsych.data.get().localSave('csv','probe_debug.csv'); });
+
+// =============================
+// Instructions (static)
+// =============================
+const instructions = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `<div style=\"color:#e5e7eb; max-width: 800px; margin: 0 auto; text-align:left\">
+    <h2>Probe Detection Task</h2>
+    <p>Watch each video. Red rectangles will briefly appear. Press <kbd>F</kbd> or <kbd>J</kbd> when you see a rectangle.</p>
+    <ul>
+      <li>Probes last 1000 ms unless you respond sooner.</li>
+      <li>Pressing a key with no probe = <em>false alarm</em>.</li>
+      <li>Between videos: 5→1 countdown. <kbd>J</kbd> skips. <kbd>F</kbd> pauses, <kbd>J</kbd> resumes.</li>
+      <li>Videos autoplay muted; you cannot pause videos.</li>
+    </ul>
+    <p>Press any key to begin.</p>
+  </div>`
+};
+
+const stage3Complete = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `<div style="color:#e5e7eb; max-width: 800px; margin: 60px auto; text-align:center">
+    <h2>Training Complete</h2>
+    <p style="opacity:.9;margin-top:10px">
+      Great. You’ve finished Stage 3${OPTIONS.USE_ADAPTIVE_TRAINING ? ' (adaptive)' : ''}.
+    </p>
+    <p class="hint" style="opacity:.75;margin-top:8px">
+      Next you’ll see the task instructions again, then the main videos will begin with a short countdown.
+    </p>
+    <p style="margin-top:14px">Press any key to continue.</p>
+  </div>`
+};
+
+// =============================
+// Build & append main timeline AFTER settings are chosen
+// =============================
+function shuffled(arr){ return jsPsych.randomization.shuffle(arr.slice()); }
+
+function trialForVideo(src, idx){
+  return {
+    type: VideoProbeDetect,
+    stimulus: [src],
+    controls: false,
+    autoplay: true,
+    response_keys: TRIAL_DEFAULTS.response_keys,
+    min_soa: TRIAL_DEFAULTS.min_soa,
+    max_soa: TRIAL_DEFAULTS.max_soa,
+    probe_duration: TRIAL_DEFAULTS.probe_duration,
+    sizes: TRIAL_DEFAULTS.sizes,
+    sizes_mm: TRIAL_DEFAULTS.sizes_mm,
+    bounds: TRIAL_DEFAULTS.bounds,
+    probe_color: TRIAL_DEFAULTS.probe_color,
+    prompt: 'Press <kbd>F</kbd> or <kbd>J</kbd> when a red rectangle appears.',
+    data_tag: `video_${idx}`
+  };
+}
+
+const microCheck = {
+  type: jsPsychSurveyLikert,
+  preamble: '<p style="color:#e5e7eb">Quick check-in</p>',
+  questions: [
+    {prompt:'Alertness right now?', labels:['Very low','Low','Somewhat','Moderate','High','Very high'], required:true},
+    {prompt:'Task difficulty?', labels:['Very easy','Easy','Somewhat','Moderate','Hard','Very hard'], required:true}
+  ],
+  randomize_question_order: false
+};
+
+function interstitial(){ return { type: CountdownPause, seconds: 5 }; }
+
+
+
+function makePhaseA(){
+  // Ratio only from 20/15 down to 16/15; harder step after 5 consecutive correct
+  const baseMin = Math.min(TRIAL_DEFAULTS.sizes[0].w, TRIAL_DEFAULTS.sizes[0].h, TRIAL_DEFAULTS.sizes[1].w, TRIAL_DEFAULTS.sizes[1].h); // likely 15
+  return {
+    type: PracticeAdaptive,
+    require_space_to_start: true,
+    prompt_html: `<p style="color:#e5e7eb">Phase A (Adaptive ratio 20/15→16/15): Press <b>SPACE</b> to begin. J=tall, F=wide.</p>`,
+    bounds: TRIAL_DEFAULTS.bounds,
+    response_keys: TRIAL_DEFAULTS.response_keys,
+    min_side_px: baseMin,            // ~15
+    start_long_px: Math.round(baseMin * (20/15)), // ~20
+    consec_to_step: 5,               // 5 in a row → harder
+    roll_window: 12,
+    roll_stop_at: 0.55,
+    max_trials: 60,
+    max_long_allowed: Math.round(baseMin * (20/15)), // clamp to 20/15
+    data: { training_stage: 'A', adaptive: true }
+  };
+}
+
+
+
+function makePhaseB(){
+  return {
+    type: PracticeContrastBackground,
+    require_space_to_start: true,
+    response_keys: TRIAL_DEFAULTS.response_keys,
+    bounds: TRIAL_DEFAULTS.bounds,
+    start_contrast: 0.40,
+    min_contrast: 0.06,
+    step_contrast: 0.02,
+    consec_to_step: 5,
+    max_trials: 40,
+    probe_size_px: { w: Math.max(TRIAL_DEFAULTS.sizes[0].w, TRIAL_DEFAULTS.sizes[0].h), 
+                     h: Math.min(TRIAL_DEFAULTS.sizes[0].w, TRIAL_DEFAULTS.sizes[0].h) }
+  };
+}
+
+function makePhaseC(){
+  return {
+    type: PracticeMotionBackground,
+    require_space_to_start: true,
+    response_keys: TRIAL_DEFAULTS.response_keys,
+    bounds: TRIAL_DEFAULTS.bounds,
+    balls_n: 4,
+    ball_radius: 30,
+    ball_speed: 90,
+    recent_ms_collision: 800,
+    max_trials: 40,
+    probe_size_px: { w: Math.max(TRIAL_DEFAULTS.sizes[0].w, TRIAL_DEFAULTS.sizes[0].h), 
+                     h: Math.min(TRIAL_DEFAULTS.sizes[0].w, TRIAL_DEFAULTS.sizes[0].h) }
+  };
+}
+
+
+
+
+function trainingSequence(){
+
+  // helper: last accuracy for a given training stage
+  function lastAccFor(stageNum){
+    const d = jsPsych.data.get().filter({ trial_type: 'practice-probes', training_stage: stageNum }).last(1).values()[0];
+    return (d && typeof d.accuracy === 'number') ? d.accuracy : 0;
+  }
+
+  // builds [ practice_stage , feedback ] and loops until accuracy ≥ minAcc
+  function makeStageGate(stageNum, practiceNode, label, minAcc=0.80){
+    const feedback = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `<div style="color:#e5e7eb;max-width:800px;margin:40px auto;text-align:left">
+        <h2>${label} — Feedback</h2>
+        <div id="fb" style="margin-top:10px;opacity:.9">Calculating...</div>
+        <p style="margin-top:12px; opacity:.8">
+          ${minAcc ? 'Press any key to retry if needed (requires ≥ ' + Math.round(minAcc*100) + '%).' : 'Press any key to continue.'}
+        </p>
+      </div>`,
+      on_start: (t)=>{
+        const acc = lastAccFor(stageNum);
+        t.stimulus = t.stimulus.replace('Calculating...',
+          `Accuracy: <b>${Math.round(acc*100)}%</b> (need ≥ ${Math.round(minAcc*100)}%)`);
+      }
+    };
+
+    return {
+      timeline: [ practiceNode, feedback ],
+      loop_function: () => {
+        const acc = lastAccFor(stageNum);
+        // return true to repeat [practice, feedback]; false to advance to next stage
+        return acc < minAcc;
+      }
+    };
+  }
+
+  // -------- Stage 1 (big, centered, until response) --------
+  const stage1_intro = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `<div style="color:#e5e7eb;max-width:800px;margin:40px auto;text-align:left">
+      <h2>Training — Stage 1</h2>
+      <p>Rectangles will appear in the <b>center</b>, made <b>5× larger</b> for training.</p>
+      <ul>
+        <li>Press <kbd>J</kbd> for <b>tall</b></li>
+        <li>Press <kbd>F</kbd> for <b>wide</b></li>
+        <li>They stay until you respond</li>
+      </ul>
+      <p>Press any key to begin (10 trials, need ≥ 80% correct).</p>
+    </div>`
+  };
+
+  const stage1_practice = {
+    type: PracticeProbes,
+    n_trials: 10,
+    center_only: true,
+    size_scale: 5,
+    duration_ms: null,
+    require_space_to_start: false,
+    prompt_html: `<p style="color:#e5e7eb">Training 1: <b>Center, Big</b> — J = tall, F = wide.</p>`,
+    use_mm: TRIAL_DEFAULTS.use_mm,
+    sizes_px: TRIAL_DEFAULTS.sizes,
+    sizes_mm: TRIAL_DEFAULTS.sizes_mm,
+    bounds: TRIAL_DEFAULTS.bounds,
+    response_keys: TRIAL_DEFAULTS.response_keys,
+    data: { training_stage: 1 }   // <— tag the data so we can find the right accuracy
+  };
+
+  const stage1_gate = makeStageGate(1, stage1_practice, 'Stage 1', 0.80);
+
+  // -------- Stage 2 (normal size, random, until response) --------
+  const stage2_intro = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `<div style="color:#e5e7eb;max-width:800px;margin:40px auto;text-align:left">
+      <h2>Training — Stage 2</h2>
+      <p>Rectangles now appear at <b>random locations</b> at <b>normal size</b>.</p>
+      <ul>
+        <li>Press <kbd>J</kbd> for tall; <kbd>F</kbd> for wide</li>
+        <li>They stay until you respond</li>
+      </ul>
+      <p>Press any key to begin (10 trials, need ≥ 80% correct).</p>
+    </div>`
+  };
+
+  const stage2_practice = {
+    type: PracticeProbes,
+    n_trials: 10,
+    center_only: false,
+    size_scale: 1,
+    duration_ms: null,
+    require_space_to_start: false,
+    prompt_html: `<p style="color:#e5e7eb">Training 2: <b>Random,_Normal size</b> — J = tall, F = wide.</p>`,
+    use_mm: TRIAL_DEFAULTS.use_mm,
+    sizes_px: TRIAL_DEFAULTS.sizes,
+    sizes_mm: TRIAL_DEFAULTS.sizes_mm,
+    bounds: TRIAL_DEFAULTS.bounds,
+    response_keys: TRIAL_DEFAULTS.response_keys,
+    data: { training_stage: 2 }
+  };
+
+  const stage2_gate = makeStageGate(2, stage2_practice, 'Stage 2', 0.80);
+
+  // -------- Stage 3 (normal size, random, 1000 ms; SPACE to start) --------
+   // -------- Stage 3 --------
+  const stage3_intro = {
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: `<div style="color:#e5e7eb;max-width:800px;margin:40px auto;text-align:left">
+      <h2>Training — Stage 3${OPTIONS.USE_ADAPTIVE_TRAINING ? ' (Adaptive)' : ''}</h2>
+      <p>${OPTIONS.USE_ADAPTIVE_TRAINING
+        ? 'This version becomes harder as you respond correctly. It stops when your recent accuracy is near chance.'
+        : 'This stage matches the main experiment but without a background video.'}
+      </p>
+      <ul>
+        <li>Random locations within the inner bounds</li>
+        <li>${OPTIONS.USE_ADAPTIVE_TRAINING ? 'Press SPACE to start; J=tall / F=wide' : 'Rectangles appear briefly (1000 ms); Press SPACE to start; J=tall / F=wide'}</li>
+      </ul>
+      <p>Press any key to go to Stage 3.</p>
+    </div>`
+  };
+
+  const stage3_practice = OPTIONS.USE_ADAPTIVE_TRAINING ? {
+    type: PracticeAdaptive,
+    require_space_to_start: true,
+    prompt_html: `<p style="color:#e5e7eb">Training 3 (Adaptive): Press <b>SPACE</b> to begin. J = tall, F = wide. It will get harder.</p>`,
+    bounds: TRIAL_DEFAULTS.bounds,
+    response_keys: TRIAL_DEFAULTS.response_keys,
+    min_side_px: Math.min(TRIAL_DEFAULTS.sizes[0].w, TRIAL_DEFAULTS.sizes[0].h, TRIAL_DEFAULTS.sizes[1].w, TRIAL_DEFAULTS.sizes[1].h), // likely 15
+    start_long_px: Math.max(TRIAL_DEFAULTS.sizes[0].w, TRIAL_DEFAULTS.sizes[0].h, TRIAL_DEFAULTS.sizes[1].w, TRIAL_DEFAULTS.sizes[1].h), // likely 25
+    consec_to_step: 3,
+    roll_window: 10,
+    roll_stop_at: 0.55,
+    max_trials: 60,
+    data: { training_stage: 3, adaptive: true }
+  } : {
+    type: PracticeProbes,
+    n_trials: 10,
+    center_only: false,
+    size_scale: 1,
+    duration_ms: 1000,
+    require_space_to_start: true,
+    prompt_html: `<p style="color:#e5e7eb">Training 3: <b>Random, 1000 ms</b> — Press <b>SPACE</b> to begin.</p>`,
+    use_mm: TRIAL_DEFAULTS.use_mm,
+    sizes_px: TRIAL_DEFAULTS.sizes,
+    sizes_mm: TRIAL_DEFAULTS.sizes_mm,
+    bounds: TRIAL_DEFAULTS.bounds,
+    response_keys: TRIAL_DEFAULTS.response_keys,
+    data: { training_stage: 3, adaptive: false }
+  };
+
+return [
+  stage1_intro, stage1_gate,
+  stage2_intro, stage2_gate,
+
+  // === New Phases A–C ===
+  { type: jsPsychHtmlKeyboardResponse, stimulus: `<div style="color:#e5e7eb;max-width:800px;margin:40px auto;text-align:left">
+      <h2>Phase A — Ratio tuning (harder start)</h2>
+      <p>We’ll estimate your threshold using smaller ratios (20/15 down to 16/15). Press any key.</p>
+    </div>` },
+  makePhaseA(),
+
+  { type: jsPsychHtmlKeyboardResponse, stimulus: `<div style="color:#e5e7eb;max-width:800px;margin:40px auto;text-align:left">
+      <h2>Phase B — Color background</h2>
+      <p>Same task, but on a smooth color gradient. We’ll vary contrast. Press any key.</p>
+    </div>` },
+  makePhaseB(),
+
+  { type: jsPsychHtmlKeyboardResponse, stimulus: `<div style="color:#e5e7eb;max-width:800px;margin:40px auto;text-align:left">
+      <h2>Phase C — Motion background</h2>
+      <p>Grey circles move and bounce. We’ll record how motion and event boundaries affect performance. Press any key.</p>
+    </div>` },
+  makePhaseC(),
+  // === End A–C ===
+];
+}
+
+
+
+
+function buildAndAppendMainTimeline(){
+  const rest = [];
+
+  // 0) Preload videos
+  rest.push(preloadVideos);
+
+  // 1) Calibration (optional)
+  if (OPTIONS.USE_CALIBRATION) rest.push({ type: CalibrationCard });
+
+  // 2) Training or skip
+  if (!OPTIONS.SKIP_TRAINING) rest.push(...trainingSequence());
+
+  // 3) Instructions, then blocks, then end screen...
+  rest.push(instructions);
+
+  const seq = shuffled(video_list);
+  const blocks = [];
+  seq.forEach((v,i)=>{
+    blocks.push(interstitial());
+    blocks.push(trialForVideo(v,i));
+	blocks.push(comprehensionCheck(v));   // new comprehension screen
+    if (OPTIONS.SHOW_BLOCK_SUMMARY) blocks.push({ type: VideoSummary });
+    if (OPTIONS.USE_MICRO_QUESTIONS && (i+1) % OPTIONS.MICRO_QUESTION_EVERY === 0) blocks.push(microCheck);
+  });
+
+  // Then the main blocks (which already start with a countdown)
+  rest.push(...blocks);
+
+  // End screen
+  rest.push({ type: DownloadScreen });
+
+  jsPsych.addNodeToEndOfTimeline({ timeline: rest }, ()=>{});
+}
+
+
+
+// =============================
+// Launch minimal timeline: (optional fullscreen) -> SettingsScreen
+// =============================
+const minimal = [];
+if (OPTIONS.USE_FULLSCREEN) minimal.push({ type: jsPsychFullscreen, fullscreen_mode: true });
+minimal.push({ type: SettingsScreen });
+
+jsPsych.run(minimal);
+</script>
+</body>
+</html>
