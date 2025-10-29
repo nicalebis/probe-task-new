@@ -2035,10 +2035,9 @@ function scheduleNextProbe(jitterMs) {
   cancelNextProbe();
   if (ended) return;
 
-  // Only wait once if metadata isn't ready
-  if (!vid || !isFinite(vid.duration) || vid.duration <= 0) {
-    // Delay a single retry, but don't get stuck forever
-    if (!ended) setTimeout(() => scheduleNextProbe(jitterMs), 200);
+  // Wait for video metadata if needed (single deferral, no infinite polling)
+  if (!isFinite(vid.duration) || vid.duration <= 0) {
+    setTimeout(() => scheduleNextProbe(jitterMs), 100);
     return;
   }
 
@@ -2047,6 +2046,7 @@ function scheduleNextProbe(jitterMs) {
   if (!isFinite(remain) || remain <= 0) return;
 
   const delay = Math.min(d, remain - MIN_ONSCREEN_MS);
+
   if (delay < MIN_ONSCREEN_MS) {
     try { showProbe(); } catch(e) { console.warn('Probe draw skipped:', e); }
     return;
@@ -2238,32 +2238,25 @@ let started = false;
 
 let onEnded = null;
 
-async function startTrialAfterFirstFrame(){
+async function startTrialAfterFirstFrame() {
   resizeCanvasToVideo();
   window.addEventListener('resize', resizeCanvasToVideo);
   await waitForFirstFrame(vid);
   trialStartPerf = performance.now();
 
+  // Reset all per-video state
   probe = null;
   nextTimer = null;
   ended = false;
-  events = [];
   started = false;
+  events.length = 0;
   window.removeEventListener('keydown', onKey);
   window.addEventListener('keydown', onKey);
-	
-  // === RESET STATE HERE ===
-  probe = null;
-  nextTimer = null;
-  ended = false;
-  events.length = 0;
-  minSOA = trial.min_soa;
-  maxSOA = trial.max_soa;
-  // =========================
-	
+
   started = true;
   attach();
-  setTimeout(() => scheduleNextProbe(), 150); // tiny guard to avoid probe on frame 1
+  setTimeout(() => scheduleNextProbe(), 150);
+
   onEnded = () => endTrial();
   if (trial.trial_ends_after_video) vid.addEventListener('ended', onEnded);
 }
