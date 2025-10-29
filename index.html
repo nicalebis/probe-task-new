@@ -2245,17 +2245,19 @@ async function startTrialAfterFirstFrame() {
   trialStartPerf = performance.now();
 
   // Reset all per-video state
-  probe = null;
-  nextTimer = null;
-  ended = false;
-  started = false;
-  events.length = 0;
-  window.removeEventListener('keydown', onKey);
-  window.addEventListener('keydown', onKey);
+probe = null;
+nextTimer = null;
+ended = false;
+started = false;
+events.length = 0;
 
-  started = true;
-  attach();
-  setTimeout(() => scheduleNextProbe(), 150);
+window.removeEventListener('keydown', onKeydown);
+window.addEventListener('keydown', onKeydown);
+
+started = true;
+attach();
+setTimeout(() => scheduleNextProbe(), 150);
+
 
   onEnded = () => endTrial();
   if (trial.trial_ends_after_video) vid.addEventListener('ended', onEnded);
