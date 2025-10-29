@@ -2031,50 +2031,31 @@ function msVideo(){
 	 
 const MIN_ONSCREEN_MS = 33; // ~1 frame
 
-function scheduleNextProbe(jitterMs){
+function scheduleNextProbe(jitterMs) {
   cancelNextProbe();
   if (ended) return;
 
-	// COMMENTED OUT FOR SAFEGUARD
-    // Defensive guard: make sure metadata really loaded
-  // if (!vid || vid.readyState < 1) {
-    // video element not yet ready — try again shortly
-  // if (!ended && vid && !vid.ended) {   setTimeout(() => scheduleNextProbe(jitterMs), 100); } return;;
-  // return;
-  // }
-	
-	// Wait for video metadata if needed
-  if (!isFinite(vid.duration) || vid.duration <= 0) {
-  if (!ended && vid && !vid.ended) {   setTimeout(() => scheduleNextProbe(jitterMs), 100); } return;;
-  return;
+  // Only wait once if metadata isn't ready
+  if (!vid || !isFinite(vid.duration) || vid.duration <= 0) {
+    // Delay a single retry, but don't get stuck forever
+    if (!ended) setTimeout(() => scheduleNextProbe(jitterMs), 200);
+    return;
   }
 
   const d = (typeof jitterMs === 'number') ? jitterMs : randInt(minSOA, maxSOA);
   let remain = msVideoTotal() - msVideo();
+  if (!isFinite(remain) || remain <= 0) return;
 
-  if (!vid || vid.readyState < 1) {
-  console.warn("Skipping probe: video not ready");
-  return;
-  }
-
-  if (!isFinite(remain) || remain <= 0) {
-    // duration not ready or video basically done
+  const delay = Math.min(d, remain - MIN_ONSCREEN_MS);
+  if (delay < MIN_ONSCREEN_MS) {
+    try { showProbe(); } catch(e) { console.warn('Probe draw skipped:', e); }
     return;
   }
 
-  // Clamp the delay so we never exceed remaining video time
-  const delay = Math.min(d, remain - MIN_ONSCREEN_MS);
-
-  if (delay < MIN_ONSCREEN_MS) {
-  // very near end: flash one more probe immediately
-  try { showProbe(); } catch(e) { console.warn('Probe draw skipped:', e); }
-  return;
-  }
-
   nextTimer = setTimeout(() => {
-  if (!ended) {
-    try { showProbe(); } catch(e) { console.warn('Probe draw skipped:', e); }
-  }
+    if (!ended) {
+      try { showProbe(); } catch(e) { console.warn('Probe draw skipped:', e); }
+    }
   }, delay);
 }
 
@@ -2267,8 +2248,9 @@ async function startTrialAfterFirstFrame(){
   nextTimer = null;
   ended = false;
   events = [];
-  minSOA = trial.min_soa;
-  maxSOA = trial.max_soa;
+  started = false;
+  window.removeEventListener('keydown', onKey);
+  window.addEventListener('keydown', onKey);
 	
   // === RESET STATE HERE ===
   probe = null;
