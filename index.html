@@ -2068,17 +2068,17 @@ function showProbe(){
   const totalVidMs = msVideoTotal();
   const remainMs   = totalVidMs - nowVidMs;
 
+  // Clamp lifetime to remaining video time (leave a few ms for cleanup)
+  const dur = Math.min(trial.probe_duration, Math.max(0, (totalVidMs - onset_video_ms) - 8));
+
   if (remainMs < MIN_ONSCREEN_MS) {
   // still allow a probe, just shorten its lifetime
   dur = remainMs;
-}
+  }
 
   const pos = pickProbe();
   const onset_video_ms = msVideo();
   const onset_perf_ms  = msNow();
-
-  // Clamp lifetime to remaining video time (leave a few ms for cleanup)
-  const dur = Math.min(trial.probe_duration, Math.max(0, (totalVidMs - onset_video_ms) - 8));
 
   probe = { ...pos, onset_video_ms, onset_perf_ms, timeout_id: null };
   draw();
