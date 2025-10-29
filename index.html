@@ -2064,23 +2064,24 @@ function cancelNextProbe(){ if(nextTimer){ clearTimeout(nextTimer); nextTimer=nu
 function showProbe(){
   if (ended || !trialStartPerf) return;
 
-  const nowVidMs   = msVideo();
   const totalVidMs = msVideoTotal();
+  const nowVidMs   = msVideo();
   const remainMs   = totalVidMs - nowVidMs;
-
-  // Clamp lifetime to remaining video time (leave a few ms for cleanup)
-  const dur = Math.min(trial.probe_duration, Math.max(0, (totalVidMs - onset_video_ms) - 8));
-
-  if (remainMs < MIN_ONSCREEN_MS) {
-  // still allow a probe, just shorten its lifetime
-  dur = remainMs;
-  }
 
   const pos = pickProbe();
   const onset_video_ms = msVideo();
   const onset_perf_ms  = msNow();
 
-  probe = { ...pos, onset_video_ms, onset_perf_ms, timeout_id: null };
+  // declare first, then possibly override—avoid TDZ
+  let dur = Math.min(trial.probe_duration,
+                     Math.max(0, (totalVidMs - onset_video_ms) - 8));
+
+  if (remainMs < MIN_ONSCREEN_MS) {
+    // final sliver of the video: shorten lifetime to what's left
+    dur = Math.max(0, remainMs);
+  }
+
+  probe = { ...pos, onset_video_ms, onset_perf_ms, dur, timeout_id: null };
   draw();
 
   events.push({
