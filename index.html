@@ -1695,7 +1695,7 @@ function comprehensionCheck(videoSrc){
 const questionBank = {
   "ANS_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, in the end:", options: ["ten balls were revealed", "five balls were revealed"] },
+      { prompt: "Description: In the event you just saw, in the end: ", options: ["some red balls were revealed", "some green balls were revealed"] },
       { prompt: "Description: in the event you just saw, a hand:", options: ["placed some balls on the stage", "placed a toy animal on the stage"] },
     ]
   },
@@ -1717,9 +1717,33 @@ const questionBank = {
       { prompt: "Description: in the event you just saw, a hand:", options: ["placed some balls on the stage", "placed a toy animal on the stage"] },
     ]
   },
+    "Cohesion_Feature.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, in the end: ", options: ["one blue object was revealed", "one red object was revealed"] },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two small screens on the stage"] },
+    ]
+  },
+  "Cohesion_Modulation.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, in the end:", options: ["one colorful block was revealed", "two colorful blocks were revealed"] },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two small screens on the stage"]},
+    ]
+  },
+  "Cohesion_Normal.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, in the end:", options: ["one colorful block was revealed", "two colorful blocks were revealed"] },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two small screens on the stage"]},
+    ]
+  },
+  "Cohesion_VOE.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, in the end:", options: ["one colorful block was revealed", "two colorful blocks were revealed"] },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two small screens on the stage"]},
+    ]
+  },
   "Continuity_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["reappeared from the left screen", "reappeared from the right screen"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] },
       { prompt: "Description: In the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two screens on the stage"] },
     ]
   },
@@ -1741,49 +1765,49 @@ const questionBank = {
       { prompt: "Description: In the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two screens on the stage"] },
     ]
   },
-  "H_Solidity_Feature.mp4": {
+  "HSolidity_Feature.mp4": {
+    text: [
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] },
+      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+    ]
+  },
+  "HSolidity_Modulation.mp4": {
     text: [
       { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] },
       { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
     ]
   },
-  "H_Solidity_Modulation.mp4": {
+  "HSolidity_Normal.mp4": {
     text: [
       { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] },
       { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
     ]
   },
-  "H_Solidity_Normal.mp4": {
+  "HSolidity_VOE.mp4": {
     text: [
       { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] },
       { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
     ]
   },
-  "H_Solidity_VOE.mp4": {
+  "VSolidity_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] },
-      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a tall screen on the stage", "placed two small screens on the stage"] },
     ]
   },
-  "Solidity_Feature.mp4": {
+  "VSolidity_Modulation.mp4": {
     text: [
       { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] },
       { prompt: "Description: In the event you just saw, a hand:", options: ["placed a tall screen on the stage", "placed two small screens on the stage"] },
     ]
   },
-  "Solidity_Modulation.mp4": {
+  "VSolidity_Normal.mp4": {
     text: [
       { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] },
       { prompt: "Description: In the event you just saw, a hand:", options: ["placed a tall screen on the stage", "placed two small screens on the stage"] },
     ]
   },
-  "Solidity_Normal.mp4": {
-    text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a tall screen on the stage", "placed two small screens on the stage"] },
-    ]
-  },
-  "Solidity_VOE.mp4": {
+  "VSolidity_VOE.mp4": {
     text: [
       { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] },
       { prompt: "Description: In the event you just saw, a hand:", options: ["placed a tall screen on the stage", "placed two small screens on the stage"] },
@@ -1791,7 +1815,7 @@ const questionBank = {
   },
   "Support_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] },
       { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
     ]
   },
@@ -1815,7 +1839,7 @@ const questionBank = {
   },
   "Wynn_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, in the end:", options: ["two toy animals sat on the stage", "one toy animal sat on the stage"] },
+      { prompt: "Description: In the event you just saw, a panda and:", options: ["another panda appeared ", "a cat appeared"] },
       { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"] },
     ]
   },
@@ -1839,7 +1863,7 @@ const questionBank = {
   },
 "RollingContinuity_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["reappeared from the left screen", "reappeared from the right screen"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] },
       { prompt: "Description: in the event you just saw, a hand:", options: ["placed a wide screen on the stage", "placed two small screens on the stage"] },
     ]
   },
@@ -2208,10 +2232,10 @@ const endTrial = () => {
     : Math.round(msNow() - trialStartPerf);
 
   // ---- Summarize responses for this clip ----
-	const hits = events.filter(ev => ev.type === 'hit').length;
+	const hits = events.filter(ev => ev.type === 'hit').length; //this works based on the log
 	const misses = events.filter(ev => ev.type === 'miss' || ev.type === 'miss_end').length;
 	const falseAlarms = events.filter(ev => ev.type === 'false_alarm').length;
-
+  //console.log(hits)
 	const rts = events
  	 .filter(ev => ev.type === 'hit' && Number.isFinite(ev.rt_ms))
  	 .map(ev => ev.rt_ms);
@@ -2310,7 +2334,8 @@ if (trial.autoplay) {
 class VideoSummary { constructor(jsPsych){ this.jsPsych = jsPsych; }
   static info = { name:'video-summary', parameters:{} };
   trial(display_element){
-    const last = this.jsPsych.data.get().last(1).values()[0]||{}; const ev=last.events||[]; const hits=ev.filter(e=>e.type==='hit').length; const misses=ev.filter(e=>e.type==='miss').length; const fas=ev.filter(e=>e.type==='false_alarm').length; const rts=ev.filter(e=>e.type==='hit').map(e=>e.rt_ms); const med = rts.length ? rts.sort((a,b)=>a-b)[Math.floor(rts.length/2)] : null;
+    const last = this.jsPsych.data.get().last(2).values()[0]||{}; const ev=last.events||[]; const hits=ev.filter(ev=>ev.type==='hit').length; const misses=ev.filter(ev=>ev.type==='miss').length; const fas=ev.filter(ev=>ev.type==='false_alarm').length; const rts=ev.filter(ev=>ev.type==='hit').map(ev=>ev.rt_ms); const med = rts.length ? rts.sort((a,b)=>a-b)[Math.floor(rts.length/2)] : null;
+    //console.log(this.jsPsych.data.get().last(2).values())
     display_element.innerHTML = `<div style="color:#e5e7eb;font:16px system-ui;text-align:center;padding:60px 0"><div style="font-size:22px;margin-bottom:10px">Segment Summary</div><div>Hits: <b>${hits}</b> • Misses: <b>${misses}</b> • False Alarms: <b>${fas}</b></div><div style="opacity:.8;margin-top:6px">Median RT: <b>${med??'—'} ms</b></div></div>`;
     setTimeout(()=> this.jsPsych.finishTrial({hits,misses,fas,median_rt:med}), 1200);
   }
