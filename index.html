@@ -852,8 +852,8 @@ class PracticeAdaptive extends PracticeProbes {
     function newProbe(){
       // choose tall vs wide randomly at current difficulty
       const tall = Math.random() < 0.5;
-      const w = tall ? minSide : longSide;
-      const h = tall ? longSide : minSide;
+      const w = tall ? trial.probe_size_px.w : trial.probe_size_px.h; // keep area roughly similar
+      const h = tall ? trial.probe_size_px.h : trial.probe_size_px.w;
       const pos = pickPos(w,h);
       onScreen = { ...pos, w, h, tall, onset_perf_ms: performance.now() };
       draw();
@@ -1273,8 +1273,11 @@ class PracticeContrastBackground { constructor(jsPsych){ this.jsPsych = jsPsych;
       }
     }
 
+
     function newProbe(){
+      // choose tall vs wide randomly at current difficulty
       const tall = Math.random() < 0.5;
+
       const w = tall ? trial.probe_size_px.w : trial.probe_size_px.h; // keep area roughly similar
       const h = tall ? trial.probe_size_px.h : trial.probe_size_px.w;
       const pos = pickPos(w,h);
