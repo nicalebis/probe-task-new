@@ -2369,9 +2369,21 @@ started = true;
 attach();
 setTimeout(() => scheduleNextProbe(), 150);
 
+const heartbeat = setInterval(() => {
+  if (ended || !trialStartPerf) return;
+  const remaining = msVideoTotal() - msVideo();
+  if (!probe && !nextTimer && remaining > MIN_ONSCREEN_MS + trial.probe_duration) {
+    console.warn('Heartbeat: restoring dropped schedule');
+    scheduleNextProbe();
+  }
+}, 500);
 
-  onEnded = () => endTrial();
-  if (trial.trial_ends_after_video) vid.addEventListener('ended', onEnded);
+onEnded = () => {
+  clearInterval(heartbeat);    // stop heartbeat for this trial
+  endTrial();
+};
+
+if (trial.trial_ends_after_video) vid.addEventListener('ended', onEnded);
 }
 
 
