@@ -2186,7 +2186,14 @@ function showProbe(){
 });
 }
 
-    function clearProbeVisualOnly(){ if(probe){ if(probe.timeout_id) clearTimeout(probe.timeout_id); probe=null; draw(); } }
+    function clearProbeVisualOnly(){ 
+      if(probe){  
+        console.warn('clearProbeVisualOnly called while probe active', {
+        now: msVideo(), remain: msVideoTotal() - msVideo()
+        });
+    if(probe.timeout_id) clearTimeout(probe.timeout_id); 
+    probe=null; 
+    draw(); } }
 
     const onKeydown = (e)=>{
       const key=e.key.toLowerCase(); if(!trial.response_keys.includes(key)) return; if(!trialStartPerf||ended) return; const press_perf=performance.now(); const press_video_ms=vid.currentTime*1000;
