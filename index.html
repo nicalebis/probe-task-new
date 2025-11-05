@@ -1636,7 +1636,7 @@ function comprehensionCheck(videoSrc){
     console.warn('[comprehensionCheck] Not enough options for', vidName, entry);
     return null;
   }
-  const shuffled = jsPsych.randomization.shuffle(opts);
+  const shuffled = opts; //jsPsych.randomization.shuffle(opts);
   const [optF, optJ] = shuffled;
 
   // Build simple text-only UI
@@ -1665,7 +1665,8 @@ function comprehensionCheck(videoSrc){
       video: vidName,
       prompt: entry.prompt,
       optionF: optF,
-      optionJ: optJ
+      optionJ: optJ,
+      correctAnswer: entry.correctAnswer
     },
   on_load: () => {
     // swallow keydowns before jsPsych sees them
@@ -1689,6 +1690,36 @@ function comprehensionCheck(videoSrc){
       const k = (data.response || '').toLowerCase();
       data.choice_key = k;
       data.choice_text = (k === 'f') ? data.optionF : (k === 'j') ? data.optionJ : null;
+      data.correct = (k === data.correctAnswer);
+    },
+     response_ends_trial: false,          // 👈 keep trial open
+    on_load: () => {
+      document.addEventListener('keydown', (e) => {
+        const k = e.key.toLowerCase();
+        if (k !== 'f' && k !== 'j') return;
+
+        const correct = (k === entry.correctAnswer);
+        const fb = document.createElement('div');
+        fb.textContent = correct ? '✓ Correct!' : '✗ Wrong';
+        fb.style.cssText = `
+          position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+          background:${correct ? '#22c55e' : '#ef4444'};
+          color:white;font-size:2em;padding:20px 40px;border-radius:12px;z-index:9999;`;
+        document.body.appendChild(fb);
+
+        // hold trial for 2 s, then finish and remove feedback
+        jsPsych.pluginAPI.setTimeout(() => {
+          fb.remove();
+          jsPsych.finishTrial({
+            response: k,
+            correct,
+            comprehension_check: true,
+            video: vidName,
+            optionF: optF,
+            optionJ: optJ
+          });
+        }, 2000);
+      }, { once: true });
     }
   };
 }
@@ -1698,277 +1729,277 @@ function comprehensionCheck(videoSrc){
 const questionBank = {
   "ANS_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, in the end: ", options: ["some pink balls were revealed", "some green balls were revealed"] },
-      { prompt: "Description: in the event you just saw, a hand:", options: ["placed some balls on the stage", "placed a toy animal on the stage"] },
+      { prompt: "Description: In the event you just saw, in the end: ", options: ["some pink balls were revealed", "some green balls were revealed"], correctAnswer: "f" },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed some balls on the stage"], correctAnswer: "j" },
     ]
   },
   "ANS_Modulation.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, in the end:", options: ["ten balls were revealed", "five balls were revealed"] },
-      { prompt: "Description: in the event you just saw, a hand:", options: ["placed some balls on the stage", "placed a toy animal on the stage"] },
+      { prompt: "Description: In the event you just saw, in the end:", options: ["ten balls were revealed", "five balls were revealed"], correctAnswer: "j"},
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed some balls on the stage", "placed a toy animal on the stage"], correctAnswer: "f" },
     ]
   },
   "ANS_Normal.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, in the end:", options: ["ten balls were revealed", "five balls were revealed"] },
-      { prompt: "Description: in the event you just saw, a hand:", options: ["placed some balls on the stage", "placed a toy animal on the stage"] },
+      { prompt: "Description: In the event you just saw, in the end:", options: ["ten balls were revealed", "five balls were revealed"], correctAnswer: "f" },
+      { prompt: "Description: in the event you just saw, a hand:", options: [ "placed a toy animal on the stage", "placed some balls on the stage"], correctAnswer: "j" },
     ]
   },
   "ANS_VOE.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, in the end:", options: ["ten balls were revealed", "five balls were revealed"] },
-      { prompt: "Description: in the event you just saw, a hand:", options: ["placed some balls on the stage", "placed a toy animal on the stage"] },
+      { prompt: "Description: In the event you just saw, in the end:", options: ["ten balls were revealed", "five balls were revealed"] , correctAnswer: "j"},
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed some balls on the stage", "placed a toy animal on the stage"] , correctAnswer: "f"},
     ]
   },
     "Cohesion_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, in the end: ", options: ["one blue object was revealed", "one red object was revealed"] },
-      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"] },
+      { prompt: "Description: In the event you just saw, in the end: ", options: ["one blue object was revealed", "one red object was revealed"], correctAnswer: "f" },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"] , correctAnswer: "j"},
     ]
   },
   "Cohesion_Modulation.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, in the end:", options: ["one colorful block was revealed", "two colorful blocks were revealed"] },
-      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"]},
+      { prompt: "Description: In the event you just saw, in the end:", options: ["one colorful block was revealed", "two colorful blocks were revealed"], correctAnswer: "j" },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"], correctAnswer: "j"},
     ]
   },
   "Cohesion_Normal.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, in the end:", options: ["one colorful block was revealed", "two colorful blocks were revealed"] },
-      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"]},
+      { prompt: "Description: In the event you just saw, in the end:", options: ["one colorful block was revealed", "two colorful blocks were revealed"] , correctAnswer: "f"},
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"], correctAnswer: "j"},
     ]
   },
   "Cohesion_VOE.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, in the end:", options: ["one colorful block was revealed", "two colorful blocks were revealed"] },
-      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"]},
+      { prompt: "Description: In the event you just saw, in the end:", options: ["one colorful block was revealed", "two colorful blocks were revealed"] , correctAnswer: "j"},
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"], correctAnswer: "j"},
     ]
   },
   "Continuity_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two screens on the stage"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two screens on the stage"] , correctAnswer: "j"},
     ]
   },
   "Continuity_Modulation.mp4": {
     text: [
-     { prompt: "Description: In the event you just saw, a cylinder:", options: ["was revealed behind the left screen", "was revealed behind the right screen"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two screens on the stage"] },
+     { prompt: "Description: In the event you just saw, a cylinder:", options: ["was revealed behind the left screen", "was revealed behind the right screen"], correctAnswer: "j" },
+      { prompt: "Description: In the event you just saw, a hand:", options: [ "placed two screens on the stage", "placed one wide screen on the stage"] , correctAnswer: "f"},
     ]
   },
   "Continuity_Normal.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was revealed behind the left screen", "was revealed behind the right screen"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two screens on the stage"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was revealed behind the left screen", "was revealed behind the right screen"] , correctAnswer: "f"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two screens on the stage"], correctAnswer: "j" },
     ]
   },
   "Continuity_VOE.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was revealed behind the left screen", "was revealed behind the right screen"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two screens on the stage"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was revealed behind the left screen", "was revealed behind the right screen"], correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: [ "placed two screens on the stage", "placed one wide screen on the stage"], correctAnswer: "f" },
     ]
   },
   "HSolidity_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a horizontal shelf on the stage", "placed a vertical wall on the stage"]},
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a horizontal shelf on the stage", "placed a vertical wall on the stage"], correctAnswer: "j"},
     ]
   },
   "HSolidity_Modulation.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a horizontal shelf on the stage", "placed a vertical wall on the stage"]},
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a vertical wall on the stage", "placed a horizontal shelf on the stage"], correctAnswer: "f"},
     ]
   },
   "HSolidity_Normal.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a horizontal shelf on the stage", "placed a vertical wall on the stage"]},
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] , correctAnswer: "f"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a horizontal shelf on the stage", "placed a vertical wall on the stage"], correctAnswer: "j"},
     ]
   },
   "HSolidity_VOE.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a horizontal shelf on the stage", "placed a vertical wall on the stage"]},
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended on the left of the wall", "ended on the right of the wall"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a vertical wall on the stage", "placed a horizontal shelf on the stage"], correctAnswer: "f"},
     ]
   },
   "VSolidity_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a horizontal shelf on the stage", "placed a vertical wall on the stage"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"], correctAnswer: "j" },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a horizontal shelf on the stage", "placed a vertical wall on the stage"] , correctAnswer: "f"},
     ]
   },
   "VSolidity_Modulation.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a horizontal shelf on the stage", "placed a vertical wall on the stage"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a vertical wall on the stage", "placed a horizontal shelf on the stage"] , correctAnswer: "j"},
     ]
   },
   "VSolidity_Normal.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a horizontal shelf on the stage", "placed a vertical wall on the stage"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] , correctAnswer: "f"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a horizontal shelf on the stage", "placed a vertical wall on the stage"] , correctAnswer: "f"},
     ]
   },
   "VSolidity_VOE.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a horizontal shelf on the stage", "placed a vertical wall on the stage"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended above the platform", "ended below the platform"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a vertical wall on the stage", "placed a horizontal shelf on the stage"], correctAnswer: "j"},
     ]
   },
   "Support_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] },
-      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: [ "placed two screens on the stage", "placed one wide screen on the stage"] , correctAnswer: "j"},
     ]
   },
   "Support_Modulation.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"] },
-      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: [ "placed two screens on the stage", "placed one wide screen on the stage"], correctAnswer: "j"},
     ]
   },
   "Support_Normal.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"] },
-      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"] , correctAnswer: "f"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed one wide screen on the stage",  "placed two screens on the stage"] , correctAnswer: "f"},
     ]
   },
   "Support_VOE.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"] },
-      { prompt: "Description: In the event you just saw, a cylinder rolled:", options: ["towards a wall standing in its path", "towards a gap in its path"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"], correctAnswer: "j" },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed one wide screen on the stage",  "placed two screens on the stage"] , correctAnswer: "f"},
     ]
   },
   "Wynn_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cat and:", options: ["another cat appeared ", "another panda appeared"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"] },
+      { prompt: "Description: In the event you just saw, a cat and:", options: ["another cat appeared ", "another panda appeared"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"] , correctAnswer: "f"},
     ]
   },
   "Wynn_Modulation.mp4": {
     text: [
-       { prompt: "Description: In the event you just saw, in the end:", options: ["two toy animals sat on the stage", "one toy animal sat on the stage"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"] },
+       { prompt: "Description: In the event you just saw, in the end:", options: ["two toy animals sat on the stage", "one toy animal sat on the stage"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"], correctAnswer: "f" },
     ]
   },
   "Wynn_Normal.mp4": {
     text: [
-       { prompt: "Description: In the event you just saw, in the end:", options: ["two toy animals sat on the stage", "one toy animal sat on the stage"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"] },
+       { prompt: "Description: In the event you just saw, in the end:", options: ["two toy animals sat on the stage", "one toy animal sat on the stage"] , correctAnswer: "f"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"] , correctAnswer: "f"},
     ]
   },
   "Wynn_VOE.mp4": {
     text: [
-       { prompt: "Description: In the event you just saw, in the end:", options: ["two toy animals sat on the stage", "one toy animal sat on the stage"] },
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"] },
+       { prompt: "Description: In the event you just saw, in the end:", options: ["two toy animals sat on the stage", "one toy animal sat on the stage"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed a toy animal on the stage", "placed a cylinder on the ramp"] , correctAnswer: "f"},
     ]
   },
 "RollingContinuity_Feature.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] },
-      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["with coloful speckles appeared ", "with a star appeared"] , correctAnswer: "f"},
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"] , correctAnswer: "j"},
     ]
   },
   "RollingContinuity_Modulation.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was revealed behind the left screen", "was revealed behind the right screen"] },
-      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was revealed behind the left screen", "was revealed behind the right screen"], correctAnswer: "j" },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"], correctAnswer: "j" },
     ]
   },
   "RollingContinuity_Normal.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was revealed behind the left screen", "was revealed behind the right screen"] },
-      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was revealed behind the left screen", "was revealed behind the right screen"] , correctAnswer: "f"},
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"] , correctAnswer: "j"},
     ]
   },
   "RollingContinuity_VOE.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was revealed behind the left screen", "was revealed behind the right screen"] },
-      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was revealed behind the left screen", "was revealed behind the right screen"], correctAnswer: "j" },
+      { prompt: "Description: in the event you just saw, a hand:", options: ["placed one wide screen on the stage", "placed two small screens on the stage"], correctAnswer: "j" },
     ]
   },
 
 "Filler1.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] , correctAnswer: "f"},
     ]
   },
 "Filler2.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"], correctAnswer: "f" },
     ]
   },
 "Filler3.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"], correctAnswer: "f" },
     ]
   },
 "Filler4.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] , correctAnswer: "f"},
     ]
   },
 "Filler5.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] },
+      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] , correctAnswer: "j"},
     ]
   },
 "Filler6.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] },
+      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"], correctAnswer: "f" },
     ]
   },
 "Filler7.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] },
+      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] , correctAnswer: "f"},
     ]
   },
 "Filler8.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] },
+      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] , correctAnswer: "f"},
     ]
   },
 
 "Filler9.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] , correctAnswer: "j"},
     ]
   },
 "Filler10.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] , correctAnswer: "j"},
     ]
   },
 "Filler11.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] , correctAnswer: "j"},
     ]
   },
 "Filler12.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] , correctAnswer: "j"},
     ]
   },
 "Filler13.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was brushed by something", "was knocked by a hand"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was brushed by something", "was knocked by a hand"] , correctAnswer: "f"},
     ]
   },
 "Filler14.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was brushed by something", "was knocked by a hand"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was brushed by something", "was knocked by a hand"] , correctAnswer: "f"},
     ]
   },
 "Filler15.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was brushed by something", "was knocked by a hand"] },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was brushed by something", "was knocked by a hand"], correctAnswer: "f" },
     ]
   },
 "Filler16.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was brushed by something", "was knocked by a hand"] },
-    ]
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["was brushed by something", "was knocked by a hand"], correctAnswer: "f" },
+    ] 
   },
 };
 
@@ -2060,7 +2091,7 @@ function msVideo(){
   return vid.currentTime * 1000;
 }
 	 
-const MIN_ONSCREEN_MS = 33; // ~1 frame
+const MIN_ONSCREEN_MS = 33; // ~1 total response window
 
 function scheduleNextProbe(jitterMs) {
   cancelNextProbe();
@@ -2076,10 +2107,12 @@ function scheduleNextProbe(jitterMs) {
   let remain = msVideoTotal() - msVideo();
   if (!isFinite(remain) || remain <= 0) return;
 
-  const delay = Math.min(d, remain - MIN_ONSCREEN_MS);
+  const PROBE_END_BUFFER_MS = 1000;
+
+  const delay = Math.min(d, remain - (PROBE_END_BUFFER_MS + MIN_ONSCREEN_MS));
 
   if (delay < MIN_ONSCREEN_MS) {
-    try { showProbe(); } catch(e) { console.warn('Probe draw skipped:', e); }
+    //try { showProbe(); } catch(e) { console.warn('Probe draw skipped:', e); }
     return;
   }
 
@@ -2235,7 +2268,13 @@ const endTrial = () => {
     : Math.round(msNow() - trialStartPerf);
 
   // ---- Summarize responses for this clip ----
-	const hits = events.filter(ev => ev.type === 'hit').length; //this works based on the log
+     function isCorrectKey(ev) {
+      if (ev.w === 25 && ev.key === "f") return true;
+      if (ev.w === 15 && ev.key === "j") return true;
+      return false;
+    }
+	const hits = events.filter(ev => ev.type === 'hit' && isCorrectKey(ev)).length; //this works based on the log
+  const wrongHits = events.filter(ev => ev.type === 'hit' && !isCorrectKey(ev)).length;
 	const misses = events.filter(ev => ev.type === 'miss' || ev.type === 'miss_end').length;
 	const falseAlarms = events.filter(ev => ev.type === 'false_alarm').length;
   //console.log(hits)
@@ -2255,6 +2294,7 @@ const endTrial = () => {
     minSOA, maxSOA, sizesPx, px_per_mm,
 	// ---- new summary fields ----
   		hits,
+      wrongHits,
   		misses,
   		false_alarms: falseAlarms,
   		mean_rt_ms: meanRT,
@@ -2337,10 +2377,24 @@ if (trial.autoplay) {
 class VideoSummary { constructor(jsPsych){ this.jsPsych = jsPsych; }
   static info = { name:'video-summary', parameters:{} };
   trial(display_element){
-    const last = this.jsPsych.data.get().last(2).values()[0]||{}; const ev=last.events||[]; const hits=ev.filter(ev=>ev.type==='hit').length; const misses=ev.filter(ev=>ev.type==='miss').length; const fas=ev.filter(ev=>ev.type==='false_alarm').length; const rts=ev.filter(ev=>ev.type==='hit').map(ev=>ev.rt_ms); const med = rts.length ? rts.sort((a,b)=>a-b)[Math.floor(rts.length/2)] : null;
+    const last = this.jsPsych.data.get().last(2).values()[0]||{}; 
+    const ev=last.events||[]; 
+    function isCorrectKey(ev) {
+      if (ev.w === 25 && ev.key === "f") return true;
+      if (ev.w === 15 && ev.key === "j") return true;
+      return false;
+    }
+    const hits = ev.filter(ev => ev.type === 'hit' && isCorrectKey(ev)).length;
+    const wrongHits = ev.filter(ev => ev.type === 'hit' && !isCorrectKey(ev)).length;
+    const misses=ev.filter(ev=>ev.type==='miss').length; 
+    const fas=ev.filter(ev=>ev.type==='false_alarm').length; 
+    const rts = ev
+      .filter(ev => ev.type === 'hit' && isCorrectKey(ev))
+      .map(ev => ev.rt_ms);
+    const med = rts.length ? rts.sort((a,b)=>a-b)[Math.floor(rts.length/2)] : null;
     //console.log(this.jsPsych.data.get().last(2).values())
-    display_element.innerHTML = `<div style="color:#e5e7eb;font:16px system-ui;text-align:center;padding:60px 0"><div style="font-size:22px;margin-bottom:10px">Segment Summary</div><div>Hits: <b>${hits}</b> • Misses: <b>${misses}</b> • False Alarms: <b>${fas}</b></div><div style="opacity:.8;margin-top:6px">Median RT: <b>${med??'—'} ms</b></div></div>`;
-    setTimeout(()=> this.jsPsych.finishTrial({hits,misses,fas,median_rt:med}), 1200);
+    display_element.innerHTML = `<div style="color:#e5e7eb;font:16px system-ui;text-align:center;padding:60px 0"><div style="font-size:22px;margin-bottom:10px">Segment Summary</div><div>Correct Hits: <b>${hits}</b> • Wrong Hits: <b>${wrongHits}</b>• Misses: <b>${misses}</b> • False Alarms: <b>${fas}</b></div><div style="opacity:.8;margin-top:6px">Median RT: <b>${med??'—'} ms</b></div></div>`;
+    setTimeout(()=> this.jsPsych.finishTrial({hits,misses,fas,median_rt:med}), 3000);
   }
 }
 
@@ -2398,6 +2452,8 @@ const instructions = {
     <p>Watch each video. Red rectangles will briefly appear. Press <kbd>F</kbd> or <kbd>J</kbd> when you see a rectangle.</p>
     <ul>
       <li>Probes last 1000 ms unless you respond sooner.</li>
+      <li>You need to press the probe when it is still on the screen for it to be counted as a Hit.</li>
+      <li>If you see a Horizontal probe, press F; if you see a Vertical probe, press J.</li>
       <li>Pressing a key with no probe = <em>false alarm</em>.</li>
       <li>Between videos: 5→1 countdown. <kbd>J</kbd> skips. <kbd>F</kbd> pauses, <kbd>J</kbd> resumes.</li>
       <li>Videos autoplay muted; you cannot pause videos.</li>
