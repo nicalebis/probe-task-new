@@ -2103,6 +2103,16 @@ function scheduleNextProbe(jitterMs) {
     return;
   }
 
+   console.log('scheduleNextProbe', {
+    jitterMs,
+    ended,
+    remain: msVideoTotal() - msVideo(),
+    msVideoTotal: msVideoTotal(),
+    msVideo: msVideo(),
+    minSOA,
+    maxSOA
+  });
+
   const d = (typeof jitterMs === 'number') ? jitterMs : randInt(minSOA, maxSOA);
   let remain = msVideoTotal() - msVideo();
   if (!isFinite(remain) || remain <= 0) return;
@@ -2168,6 +2178,12 @@ function showProbe(){
       scheduleNextProbe();
     }, dur);
   }
+
+  console.log('showProbe', {
+  now: msVideo(),
+  remain: msVideoTotal() - msVideo(),
+  dur: probe?.dur
+});
 }
 
     function clearProbeVisualOnly(){ if(probe){ if(probe.timeout_id) clearTimeout(probe.timeout_id); probe=null; draw(); } }
