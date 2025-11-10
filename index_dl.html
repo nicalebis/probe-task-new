@@ -1695,6 +1695,12 @@ function comprehensionCheck(videoSrc){
     },
      response_ends_trial: false,          // 👈 keep trial open
     on_load: () => {
+            const gate = (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      };
+      window.addEventListener('keydown', gate, true);
+      setTimeout(() => window.removeEventListener('keydown', gate, true), 1000); 
       document.addEventListener('keydown', (e) => {
         const k = e.key.toLowerCase();
         if (k !== 'f' && k !== 'j') return;
@@ -1856,19 +1862,19 @@ const questionBank = {
   },
   "Support_Modulation.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two blocks", "ended on the far end of the platform"] , correctAnswer: "j"},
       { prompt: "Description: In the event you just saw, a hand:", options: [ "placed two screens on the stage", "placed one wide screen on the stage"], correctAnswer: "j"},
     ]
   },
   "Support_Normal.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"] , correctAnswer: "f"},
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two blocks", "ended on the far end of the platform"] , correctAnswer: "f"},
       { prompt: "Description: In the event you just saw, a hand:", options: ["placed one wide screen on the stage",  "placed two screens on the stage"] , correctAnswer: "f"},
     ]
   },
   "Support_VOE.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two boxes", "ended on a box on the right"], correctAnswer: "j" },
+      { prompt: "Description: In the event you just saw, a cylinder:", options: ["ended in a pit between two blocks", "ended on the far end of the platform"], correctAnswer: "j" },
       { prompt: "Description: In the event you just saw, a hand:", options: ["placed one wide screen on the stage",  "placed two screens on the stage"] , correctAnswer: "f"},
     ]
   },
@@ -1923,63 +1929,63 @@ const questionBank = {
 
 "Filler1.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] , correctAnswer: "f"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty block on the stage", "placed a toy car on the stage"] , correctAnswer: "f"},
     ]
   },
 "Filler2.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"], correctAnswer: "f" },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty block on the stage", "placed a toy car on the stage"], correctAnswer: "f" },
     ]
   },
 "Filler3.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"], correctAnswer: "f" },
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty block on the stage", "placed a toy car on the stage"], correctAnswer: "f" },
     ]
   },
 "Filler4.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] , correctAnswer: "f"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty block on the stage", "placed a toy car on the stage"] , correctAnswer: "f"},
     ]
   },
 "Filler5.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red block", "on top of a red block"] , correctAnswer: "j"},
     ]
   },
 "Filler6.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"], correctAnswer: "f" },
+      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red block", "on top of a red block"], correctAnswer: "f" },
     ]
   },
 "Filler7.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] , correctAnswer: "f"},
+      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red block", "on top of a red block"] , correctAnswer: "f"},
     ]
   },
 "Filler8.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red box", "on top of a red box"] , correctAnswer: "f"},
+      { prompt: "Description: In the event you just saw, a cylinder was placed:", options: ["at the side of a red block", "on top of a red block"] , correctAnswer: "f"},
     ]
   },
 
 "Filler9.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty block on the stage", "placed a toy car on the stage"] , correctAnswer: "j"},
     ]
   },
 "Filler10.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty block on the stage", "placed a toy car on the stage"] , correctAnswer: "j"},
     ]
   },
 "Filler11.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty block on the stage", "placed a toy car on the stage"] , correctAnswer: "j"},
     ]
   },
 "Filler12.mp4": {
     text: [
-      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty box on the stage", "placed a toy car on the stage"] , correctAnswer: "j"},
+      { prompt: "Description: In the event you just saw, a hand:", options: ["placed an empty block on the stage", "placed a toy car on the stage"] , correctAnswer: "j"},
     ]
   },
 "Filler13.mp4": {
@@ -2016,12 +2022,12 @@ const PROBE_OFFSETS_BY_EVENT = {};
 
 function generateProbeOffsets(prefix){
   const pre1 = [-1400, -1200, -1000, -800, -600, -400, -200, 0];
-  const pre3 = [1800, 2000, 2200, 2400, 2600, 2800];
+  const pre3 = [1800, 2000, 2200, 2400, 2600];
   const first = pre1[Math.floor(Math.random() * pre1.length)];
   const second = first + 1600;
    
   let third;
-  const candidates = pre3.filter(v => (v - second) >= 1000);
+  const candidates = pre3.filter(v => (v - second) >= 500);
   if (candidates.length > 0) {
     third = candidates[Math.floor(Math.random() * candidates.length)];
   } else {
@@ -2099,11 +2105,12 @@ parameters:{
       }
       // --- random probes before the first keyTime - 1400 ---
       const earliest = Math.min(...keyTimes) - 1400;
+      const safetyBuffer = 500;
       let t = 0;
       while (t < earliest) {
         const isi = randInt(trial.min_soa, trial.max_soa); // same parameters as filler
         t += isi;
-        if (t < earliest) probeSchedule.push(t);
+        if (t < earliest - safetyBuffer) probeSchedule.push(t);
       }
 
       probeSchedule.sort((a,b)=>a-b);
@@ -2132,78 +2139,106 @@ parameters:{
     }
 
     function pickPosFixed(phaseMs, videoName) {
-  // 1. Pick a random probe size first
-  const size = choose(sizesPx);
-  const w = size.w, h = size.h;
+      // 1. Pick a random probe size first
+      const size = choose(sizesPx);
+      const w = size.w, h = size.h;
+      let oc = {}, tg = {}
+      // 2. Get region info from your mapping file
+      const cfg = REGION_DEBUG[videoName];
+      const reg = cfg?.regions?.[0] || {};
+      const ocTopLeft  = cfg.regions[0].occluder1;
+      const ocBottomRight = cfg.regions[3].occluder1;
 
-  // 2. Get region info from your mapping file
-  const cfg = REGION_DEBUG[videoName];
-  const reg = cfg?.regions?.[0] || {};
-  const tg = reg.target1 || {};
-  const oc = reg.occluder1 || {};
+      if (ocTopLeft && ocBottomRight) {
+        oc.x = (ocTopLeft.x + ocBottomRight.x) / 2;     // center X
+        oc.y = (ocTopLeft.y + ocBottomRight.y) / 2;     // center Y
+        oc.w = Math.abs(ocBottomRight.x - ocTopLeft.x); // width
+        oc.h = Math.abs(ocBottomRight.y - ocTopLeft.y); // height
+      }
 
-  // 3. Establish overlay and scaling
-  const overlayW = overlay.width;
-  const overlayH = overlay.height;
-  const videoW = vid.videoWidth;
-  const videoH = vid.videoHeight;
-  const scaleX = overlayW / videoW;
-  const scaleY = overlayH / videoH;
+      const tgTopLeft = cfg.regions[0]?.target1;
+      const tgBottomRight = cfg.regions[3]?.target1;
 
-  // 4. Set defaults
-  let x = Math.round(overlayW / 2);
-  let y = Math.round(overlayH / 2);
+      if (tgTopLeft && tgBottomRight) {
+          tg.x = (tgTopLeft.x + tgBottomRight.x) / 2;
+          tg.y = (tgTopLeft.y + tgBottomRight.y) / 2;
+          tg.w = Math.abs(tgBottomRight.x - tgTopLeft.x);
+          tg.h = Math.abs(tgBottomRight.y - tgTopLeft.y);
+      }
+      
 
-  // 5. Before keytime: occluder region (simple random offset inside it)
-  if (phaseMs < 0 && oc.x != null && oc.y != null) {
-    const cx = oc.x * scaleX;
-    const cy = oc.y * scaleY;
+      // 3. Establish overlay and scaling
+      const overlayW = overlay.width;
+      const overlayH = overlay.height;
+      const videoW = vid.videoWidth;
+      const videoH = vid.videoHeight;
+      const scaleX = overlayW / videoW;
+      const scaleY = overlayH / videoH;
 
-    // Make a small local random box (±10% of video width/height)
-    const jitterX = randFloat(-0.05 * overlayW, 0.05 * overlayW);
-    const jitterY = randFloat(-0.05 * overlayH, 0.05 * overlayH);
+      // 4. Set defaults
+      let x = Math.round(overlayW / 2);
+      let y = Math.round(overlayH / 2);
 
-    x = Math.round(cx + jitterX);
-    y = Math.round(cy + jitterY);
+      // 5. Before keytime: occluder region (simple random offset inside it)
+      if (phaseMs < 0 && oc.x != null && oc.y != null) {
+        const cx = oc.x * scaleX;
+        const cy = oc.y * scaleY;
+        const halfW = (oc.w / 2) * scaleX;
+        const halfH = (oc.h / 2) * scaleY;
+
+        // Define inner safe bounds (so the whole probe stays inside)
+        const xMin = cx - halfW + w / 2;
+        const xMax = cx + halfW - w / 2;
+        const yMin = cy - halfH + h / 2;
+        const yMax = cy + halfH - h / 2;
+        x = Math.round(randFloat(xMin, xMax));
+        y = Math.round(randFloat(yMin, yMax));
+      }
+
+      // 6. After keytime: donut region around target
+      else if (phaseMs >= 0 && tg.x != null && tg.y != null) {
+        const cx = tg.x * scaleX;
+        const cy = tg.y * scaleY;
+
+        // Define inner and outer radii (just like your working random bounds)
+        const baseR = Math.max((tg.w ?? 60) * 0.5 * Math.min(scaleX, scaleY), 30);
+        const outerR = Math.min(baseR * 2, overlayW / 3); // cap size to screen
+
+        // Uniform random donut sample
+        const theta = Math.random() * 2 * Math.PI;
+        const r = Math.sqrt(Math.random() * (outerR ** 2 - baseR ** 2) + baseR ** 2);
+
+        x = Math.round(cx + r * Math.cos(theta));
+        y = Math.round(cy + r * Math.sin(theta));
+      }
+
+        // 7. Clamp inside overlay bounds like pickPosRandom()
+        x = Math.max(w / 2, Math.min(overlayW - w / 2, x));
+        y = Math.max(h / 2, Math.min(overlayH - h / 2, y));
+        console.log("FixedPos:", {x,y,w,h})
+
+        // 8. Return same structure
+        return { x, y, w, h };
   }
-
-  // 6. After keytime: donut region around target
-  else if (phaseMs >= 0 && tg.x != null && tg.y != null) {
-    const cx = tg.x * scaleX;
-    const cy = tg.y * scaleY;
-
-    // Define inner and outer radii (just like your working random bounds)
-    const baseR = Math.max((tg.w ?? 60) * 0.5 * Math.min(scaleX, scaleY), 30);
-    const outerR = Math.min(baseR * 2, overlayW / 3); // cap size to screen
-
-    // Uniform random donut sample
-    const theta = Math.random() * 2 * Math.PI;
-    const r = Math.sqrt(Math.random() * (outerR ** 2 - baseR ** 2) + baseR ** 2);
-
-    x = Math.round(cx + r * Math.cos(theta));
-    y = Math.round(cy + r * Math.sin(theta));
-  }
-
-  // 7. Clamp inside overlay bounds like pickPosRandom()
-  x = Math.max(w / 2, Math.min(overlayW - w / 2, x));
-  y = Math.max(h / 2, Math.min(overlayH - h / 2, y));
-  console.log("FixedPos:", {x,y,w,h})
-
-  // 8. Return same structure
-  return { x, y, w, h };
-}
 
 
     function scheduleNextProbeRandom(){
       if (ended) return;
       cancelNextProbe?.();
+      const remainingMs = (vid.duration - vid.currentTime) * 1000;
+      const soa = randInt(trial.min_soa, trial.max_soa);
+      const safetyBuffer = 500; // ms before the end where no more probes appear
+      if (remainingMs < soa + safetyBuffer) {
+        console.log("Skipping final probe (too close to end)");
+        return;
+      }
       nextTimer = setTimeout(() => {
         if (ended) return;
         if (probe) return; 
         const pos = pickPosRandom();
         showProbe(pos);
         scheduleNextProbeRandom();
-      }, randInt(trial.min_soa, trial.max_soa));
+      }, soa);
     }
 
     function pickPosRandom() {
@@ -2613,12 +2648,14 @@ if (trial.trial_ends_after_video) {
   vid.addEventListener('ended', onEnded);
 }
 
+/*
 setInterval(() => {
   if (!ended && vid.currentTime >= vid.duration - 0.05) {
     console.warn("Force-ending trial (failsafe)");
     endTrial();
   }
 }, 1000);
+*/
 //vid.addEventListener('ended', onEnded);
 }
 
@@ -2704,7 +2741,28 @@ dljson.addEventListener('click', () => {
   }
 });
 
-finish.addEventListener('click', () => this.jsPsych.finishTrial({}));
+finish.addEventListener('click', async () => {
+  try {
+    // 1. Prepare JSON data from jsPsych
+    const jsonStr = this.jsPsych.data.get().json();
+
+    // 2. Send it to the server using fetch()
+    const response = await fetch('data/upload_data.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: jsonStr
+    });
+
+    if (!response.ok) throw new Error(await response.text());
+    console.log('✅ Data successfully uploaded to server.');
+  } catch (err) {
+    console.error('❌ Failed to upload data:', err);
+    alert('Upload failed — please check your internet or server logs.');
+  }
+
+  // 3. End the trial regardless (so the experiment doesn’t hang)
+  this.jsPsych.finishTrial({});
+});
 }
 }
 
@@ -2720,14 +2778,15 @@ const instructions = {
   type: jsPsychHtmlKeyboardResponse,
   stimulus: `<div style=\"color:#e5e7eb; max-width: 800px; margin: 0 auto; text-align:left\">
     <h2>Probe Detection Task</h2>
-    <p>Watch each video. Red rectangles will briefly appear. Press <kbd>F</kbd> or <kbd>J</kbd> when you see a rectangle.</p>
+    <p> Read Carefully!!</p>
+    <p>Watch each video. Red rectangles will briefly appear. Press <kbd>F</kbd> as quick as possible when you see a rectangle.</p>
     <ul>
-      <li>Probes last 1000 ms unless you respond sooner.</li>
-      <li>You need to press the probe when it is still on the screen for it to be counted as a Hit.</li>
-      <li>If you see a Horizontal probe, press F; if you see a Vertical probe, press J.</li>
+      <li>Probes last 400 ms unless you respond sooner.</li>
+      <li>You need to press the key when it is still on the screen for it to be counted as a Hit.</li>
       <li>Pressing a key with no probe = <em>false alarm</em>.</li>
       <li>Between videos: 5→1 countdown. <kbd>J</kbd> skips. <kbd>F</kbd> pauses, <kbd>J</kbd> resumes.</li>
       <li>Videos autoplay muted; you cannot pause videos.</li>
+      <li>After each event, you will be asked a question about the event. Answer using your keyboard by pressing <kbd>F</kbd> or <kbd>J</kbd></li>
     </ul>
     <p>Press any key to begin.</p>
   </div>`
