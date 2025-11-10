@@ -723,7 +723,7 @@ const REGION_DEBUG = {
       }
     ]
   },
-  "Hsolidity_Feature.mp4": {
+  "HSolidity_Feature.mp4": {
     "keyTimes": [
       17.46
     ],
@@ -770,7 +770,7 @@ const REGION_DEBUG = {
       }
     ]
   },
-  "Hsolidity_Modulation.mp4": {
+  "HSolidity_Modulation.mp4": {
     "keyTimes": [
       17.27
     ],
@@ -817,7 +817,7 @@ const REGION_DEBUG = {
       }
     ]
   },
-  "Hsolidity_Normal.mp4": {
+  "HSolidity_Normal.mp4": {
     "keyTimes": [
       17.06
     ],
@@ -864,7 +864,7 @@ const REGION_DEBUG = {
       }
     ]
   },
-  "Hsolidity_VOE.mp4": {
+  "HSolidity_VOE.mp4": {
     "keyTimes": [
       16.67
     ],
@@ -1351,7 +1351,7 @@ const REGION_DEBUG = {
       }
     ]
   },
-  "Vsolidity_Feature.mp4": {
+  "VSolidity_Feature.mp4": {
     "keyTimes": [
       17.3
     ],
@@ -1398,7 +1398,7 @@ const REGION_DEBUG = {
       }
     ]
   },
-  "Vsolidity_Modulation.mp4": {
+  "VSolidity_Modulation.mp4": {
     "keyTimes": [
       16.96
     ],
@@ -1445,7 +1445,7 @@ const REGION_DEBUG = {
       }
     ]
   },
-  "Vsolidity_Normal.mp4": {
+  "VSolidity_Normal.mp4": {
     "keyTimes": [
       17.36
     ],
@@ -1492,7 +1492,7 @@ const REGION_DEBUG = {
       }
     ]
   },
-  "Vsolidity_VOE.mp4": {
+  "VSolidity_VOE.mp4": {
     "keyTimes": [
       17.46
     ],

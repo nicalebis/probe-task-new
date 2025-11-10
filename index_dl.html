@@ -2112,41 +2112,63 @@ parameters:{
     let lastProbeTime = -Infinity;  // track last probe onset in ms
     const PROBE_COOLDOWN_MS = trial.min_soa || 1500; // ensure spacing
     
-    function maybeShowFixedProbe(videoTimeMs) {
-      if (ended || !probeSchedule.length || probe) return;
-      const next = probeSchedule[0];
-      if (videoTimeMs >= next) {
-        const phase = next - REGION_DEBUG[videoName].keyTimes[0]*1000;
-        const pos = pickPosFixed(phase, videoName);
-        showProbe(pos);
-        probeSchedule.shift();
-        console.log(probeSchedule);
+    function scheduleFixedProbes() {
+      const keyTimeMs = REGION_DEBUG[videoName].keyTimes[0] * 1000;
+      const earliest  = keyTimeMs - 1400;
+      const nowPerf   = performance.now();
+
+      for (const next of probeSchedule) {
+        const delay = Math.max(0, next - (vid.currentTime * 1000));
+        setTimeout(() => {
+          if (ended || probe) return;  // don't double-show
+          const phase = next - keyTimeMs;
+          const pos = (next < earliest)
+            ? pickPosRandom()
+            : pickPosFixed(phase, videoName);
+          showProbe(pos);
+          console.log(`🎯 scheduled probe at ${next} ms (phase ${phase})`);
+        }, delay);
       }
     }
 
-    function pickPosFixed(phaseMs, videoName){
+    function pickPosFixed(phaseMs, videoName) {
       const cfg = REGION_DEBUG[videoName];
       const reg = cfg.regions[0];
       const [videoW, videoH] = [overlay.width, overlay.height];
       const oc = reg.occluder1, tg = reg.target1;
+
+      // Default probe size
+      const size = choose(sizesPx);
+      const w = size.w;
+      const h = size.h;
+
       let x, y;
 
       if (phaseMs < 0 && oc) {
-        x = oc.x / videoW;
-        y = oc.y / videoH;
+        // occluder region center (already in pixels)
+        x = oc.x;
+        y = oc.y;
       } else if (phaseMs >= 0 && tg) {
-        const cx = tg.x / videoW;
-        const cy = tg.y / videoH;
-        const r = 0.1 + Math.random()*0.05;
+        // target region center ± small random donut
+        const cx = tg.x;
+        const cy = tg.y;
+        const r = (0.1 + Math.random() * 0.05) * videoW; // scale donut radius to px
         const theta = Math.random() * 2 * Math.PI;
         x = cx + r * Math.cos(theta);
         y = cy + r * Math.sin(theta);
       } else {
-        x = Math.random();
-        y = Math.random();
+        x = randFloat(0, videoW);
+        y = randFloat(0, videoH);
       }
-      return {x, y};
+
+      // Clamp inside screen bounds
+      x = Math.max(w / 2, Math.min(videoW - w / 2, x));
+      y = Math.max(h / 2, Math.min(videoH - h / 2, y));
+
+      console.log("FixedPos", {x, y, w, h});
+      return {x, y, w, h};
     }
+
 
     function scheduleNextProbeRandom(){
       if (ended) return;
@@ -2160,13 +2182,24 @@ parameters:{
       }, randInt(trial.min_soa, trial.max_soa));
     }
 
-    function pickPosRandom(){
-      const {xMinFrac, xMaxFrac, yMinFrac, yMaxFrac} = trial.bounds;
-      return {
-        x: randFloat(xMinFrac, xMaxFrac),
-        y: randFloat(yMinFrac, yMaxFrac)
-      };
+    function pickPosRandom() {
+      // Pick a random probe size, just like the original pickProbe()
+      const size = choose(sizesPx);
+      const w = size.w, h = size.h;
+
+      // Convert fractional bounds into absolute pixel ranges
+      const xMin = Math.round(trial.bounds.xMinFrac * overlay.width)  + w / 2;
+      const xMax = Math.round(trial.bounds.xMaxFrac * overlay.width)  - w / 2;
+      const yMin = Math.round(trial.bounds.yMinFrac * overlay.height) + h / 2;
+      const yMax = Math.round(trial.bounds.yMaxFrac * overlay.height) - h / 2;
+
+      // Random pixel coordinates within bounds
+      const x = Math.round(randFloat(xMin, xMax));
+      const y = Math.round(randFloat(yMin, yMax));
+
+      return { x, y, w, h };
     }
+
 
     // Convert sizes
     let sizesPx = trial.sizes; const px_per_mm = getPxPerMm();
@@ -2264,14 +2297,14 @@ parameters:{
 
     function cancelNextProbe(){ if(nextTimer){ clearTimeout(nextTimer); nextTimer=null; } }
 
-    function showProbe(){
+    function showProbe(pos){
       if (ended || !trialStartPerf) return;
 
       const totalVidMs = msVideoTotal();
       const nowVidMs   = msVideo();
       const remainMs   = totalVidMs - nowVidMs;
 
-      const pos = pickProbe();
+      //if (!pos) pos = pickProbe();
       const onset_video_ms = msVideo();
       const onset_perf_ms  = msNow();
 
@@ -2305,16 +2338,12 @@ parameters:{
           });
           probe = null; draw();
           //scheduleNextProbe();
-          const gap = randInt(trial.min_soa, trial.max_soa);
-
-          nextTimer = setTimeout(() => {
-                  if (ended) return; // stop if video finished during cooldown
-                  if (hasRegionMap) {
-                    maybeShowFixedProbe(vid.currentTime * 1000);
-                  } else {
-                    scheduleNextProbeRandom();
-                  }
-                }, gap);
+          if (!hasRegionMap) {
+            const gap = randInt(trial.min_soa, trial.max_soa);
+            nextTimer = setTimeout(() => {
+            if (!ended) scheduleNextProbeRandom();
+           }, gap);
+         }
         }, dur);
       }
 
@@ -2340,7 +2369,7 @@ parameters:{
         if (OPTIONS.ADAPTIVE_CADENCE){ const recent=events.filter(ev=>ev.type==='hit'||ev.type==='miss').slice(-OPTIONS.ADAPTIVE_WINDOW); const missRate = recent.length? recent.filter(ev=>ev.type==='miss').length/recent.length : 0; if(missRate>0.4){ minSOA=Math.max(OPTIONS.ADAPTIVE_MIN, minSOA-OPTIONS.ADAPTIVE_DELTA); maxSOA=Math.max(minSOA+50, maxSOA-OPTIONS.ADAPTIVE_DELTA);} else if(missRate<0.1){ minSOA=Math.min(maxSOA-50, minSOA+OPTIONS.ADAPTIVE_DELTA); maxSOA=Math.min(OPTIONS.ADAPTIVE_MAX, maxSOA+OPTIONS.ADAPTIVE_DELTA);} }
         if (hasRegionMap) {
           // fixed-timing videos rely on schedule array; let maybeShowFixedProbe handle next one
-          maybeShowFixedProbe(vid.currentTime * 1000);
+          scheduleFixedProbes();
         } else {
           // filler videos keep random scheduling
           scheduleNextProbeRandom();
@@ -2487,7 +2516,7 @@ const endTrial = () => {
     events
   };
   display_element.innerHTML = '';
-  this.jsPsych.finishTrial(trial_data);
+  jsPsych.finishTrial(trial_data);
 };
 
 
@@ -2516,7 +2545,7 @@ async function startTrialAfterFirstFrame() {
   window.addEventListener('resize', resizeCanvasToVideo); 
   if (hasRegionMap) {
     console.log("Using fixed probe timing for", videoName);
-    vid.addEventListener('timeupdate', () => maybeShowFixedProbe(vid.currentTime * 1000));
+    scheduleFixedProbes();
   } else {
     console.log("Using random probe timing for", videoName);
     scheduleNextProbeRandom();
@@ -2549,13 +2578,13 @@ const heartbeat = setInterval(() => {
 */
 
 onEnded = () => {
-   console.log("Video ended → advancing to next trial");
-  ended = true;
-  clearTimeout(nextTimer);
-  //clearInterval(heartbeat);    // stop heartbeat for this trial
-  probeSchedule = [];
-  endTrial();
+   console.log("Video ended → advancing to next trial"); 
+   //ended = true;
+   clearTimeout(nextTimer);
+   probeSchedule = [];
+   endTrial();
 };
+
 if (trial.trial_ends_after_video) {
   vid.addEventListener('ended', onEnded);
 }
