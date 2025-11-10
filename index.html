@@ -163,10 +163,10 @@ const MODEL_OPTS = {
 // Trial defaults (toggled in UI)
 let TRIAL_DEFAULTS = {
   response_keys: ['f','j'],
-  min_soa: 500,
-  max_soa: 1000,
-  probe_duration: 1000,
-  sizes: [{w:15,h:25},{w:25,h:15}],        // px fallback
+  min_soa: 2000,
+  max_soa: 3000,
+  probe_duration: 400,
+  sizes: [{w:15,h:15},{w:15,h:15}],        // px fallback
   use_mm: false,                            // if true, use sizes_mm below (requires calibration)
   sizes_mm: [{w:6,h:10},{w:10,h:6}],        // in millimeters
   bounds: { xMinFrac: 1/16, xMaxFrac: 15/16, yMinFrac: 1/9, yMaxFrac: 8/9 },
@@ -2132,42 +2132,66 @@ parameters:{
     }
 
     function pickPosFixed(phaseMs, videoName) {
-      const cfg = REGION_DEBUG[videoName];
-      const reg = cfg.regions[0];
-      const [videoW, videoH] = [overlay.width, overlay.height];
-      const oc = reg.occluder1, tg = reg.target1;
+  // 1. Pick a random probe size first
+  const size = choose(sizesPx);
+  const w = size.w, h = size.h;
 
-      // Default probe size
-      const size = choose(sizesPx);
-      const w = size.w;
-      const h = size.h;
+  // 2. Get region info from your mapping file
+  const cfg = REGION_DEBUG[videoName];
+  const reg = cfg?.regions?.[0] || {};
+  const tg = reg.target1 || {};
+  const oc = reg.occluder1 || {};
 
-      let x, y;
+  // 3. Establish overlay and scaling
+  const overlayW = overlay.width;
+  const overlayH = overlay.height;
+  const videoW = vid.videoWidth;
+  const videoH = vid.videoHeight;
+  const scaleX = overlayW / videoW;
+  const scaleY = overlayH / videoH;
 
-      if (phaseMs < 0 && oc) {
-        // occluder region center (already in pixels)
-        x = oc.x;
-        y = oc.y;
-      } else if (phaseMs >= 0 && tg) {
-        // target region center ± small random donut
-        const cx = tg.x;
-        const cy = tg.y;
-        const r = (0.1 + Math.random() * 0.05) * videoW; // scale donut radius to px
-        const theta = Math.random() * 2 * Math.PI;
-        x = cx + r * Math.cos(theta);
-        y = cy + r * Math.sin(theta);
-      } else {
-        x = randFloat(0, videoW);
-        y = randFloat(0, videoH);
-      }
+  // 4. Set defaults
+  let x = Math.round(overlayW / 2);
+  let y = Math.round(overlayH / 2);
 
-      // Clamp inside screen bounds
-      x = Math.max(w / 2, Math.min(videoW - w / 2, x));
-      y = Math.max(h / 2, Math.min(videoH - h / 2, y));
+  // 5. Before keytime: occluder region (simple random offset inside it)
+  if (phaseMs < 0 && oc.x != null && oc.y != null) {
+    const cx = oc.x * scaleX;
+    const cy = oc.y * scaleY;
 
-      console.log("FixedPos", {x, y, w, h});
-      return {x, y, w, h};
-    }
+    // Make a small local random box (±10% of video width/height)
+    const jitterX = randFloat(-0.05 * overlayW, 0.05 * overlayW);
+    const jitterY = randFloat(-0.05 * overlayH, 0.05 * overlayH);
+
+    x = Math.round(cx + jitterX);
+    y = Math.round(cy + jitterY);
+  }
+
+  // 6. After keytime: donut region around target
+  else if (phaseMs >= 0 && tg.x != null && tg.y != null) {
+    const cx = tg.x * scaleX;
+    const cy = tg.y * scaleY;
+
+    // Define inner and outer radii (just like your working random bounds)
+    const baseR = Math.max((tg.w ?? 60) * 0.5 * Math.min(scaleX, scaleY), 30);
+    const outerR = Math.min(baseR * 2, overlayW / 3); // cap size to screen
+
+    // Uniform random donut sample
+    const theta = Math.random() * 2 * Math.PI;
+    const r = Math.sqrt(Math.random() * (outerR ** 2 - baseR ** 2) + baseR ** 2);
+
+    x = Math.round(cx + r * Math.cos(theta));
+    y = Math.round(cy + r * Math.sin(theta));
+  }
+
+  // 7. Clamp inside overlay bounds like pickPosRandom()
+  x = Math.max(w / 2, Math.min(overlayW - w / 2, x));
+  y = Math.max(h / 2, Math.min(overlayH - h / 2, y));
+  console.log("FixedPos:", {x,y,w,h})
+
+  // 8. Return same structure
+  return { x, y, w, h };
+}
 
 
     function scheduleNextProbeRandom(){
@@ -2369,10 +2393,10 @@ parameters:{
         if (OPTIONS.ADAPTIVE_CADENCE){ const recent=events.filter(ev=>ev.type==='hit'||ev.type==='miss').slice(-OPTIONS.ADAPTIVE_WINDOW); const missRate = recent.length? recent.filter(ev=>ev.type==='miss').length/recent.length : 0; if(missRate>0.4){ minSOA=Math.max(OPTIONS.ADAPTIVE_MIN, minSOA-OPTIONS.ADAPTIVE_DELTA); maxSOA=Math.max(minSOA+50, maxSOA-OPTIONS.ADAPTIVE_DELTA);} else if(missRate<0.1){ minSOA=Math.min(maxSOA-50, minSOA+OPTIONS.ADAPTIVE_DELTA); maxSOA=Math.min(OPTIONS.ADAPTIVE_MAX, maxSOA+OPTIONS.ADAPTIVE_DELTA);} }
         if (hasRegionMap) {
           // fixed-timing videos rely on schedule array; let maybeShowFixedProbe handle next one
-          scheduleFixedProbes();
+          //scheduleFixedProbes();
         } else {
           // filler videos keep random scheduling
-          scheduleNextProbeRandom();
+          //scheduleNextProbeRandom();
         }
         //scheduleNextProbe();
       } else {
@@ -2482,13 +2506,13 @@ const endTrial = () => {
     : Math.round(msNow() - trialStartPerf);
 
   // ---- Summarize responses for this clip ----
-     function isCorrectKey(ev) {
-      if (ev.w === 25 && ev.key === "f") return true;
-      if (ev.w === 15 && ev.key === "j") return true;
-      return false;
-    }
-	const hits = events.filter(ev => ev.type === 'hit' && isCorrectKey(ev)).length; //this works based on the log
-  const wrongHits = events.filter(ev => ev.type === 'hit' && !isCorrectKey(ev)).length;
+    //  function isCorrectKey(ev) {
+    //   if (ev.w === 25 && ev.key === "f") return true;
+    //   if (ev.w === 15 && ev.key === "j") return true;
+    //   return false;
+    // }
+	const hits = events.filter(ev => ev.type === 'hit' ).length; //this works based on the log
+  //const wrongHits = events.filter(ev => ev.type === 'hit' && !isCorrectKey(ev)).length;
 	const misses = events.filter(ev => ev.type === 'miss' || ev.type === 'miss_end').length;
 	const falseAlarms = events.filter(ev => ev.type === 'false_alarm').length;
   //console.log(hits)
@@ -2508,7 +2532,7 @@ const endTrial = () => {
     minSOA, maxSOA, sizesPx, px_per_mm,
 	// ---- new summary fields ----
   		hits,
-      wrongHits,
+      //wrongHits,
   		misses,
   		false_alarms: falseAlarms,
   		mean_rt_ms: meanRT,
@@ -2626,21 +2650,21 @@ class VideoSummary { constructor(jsPsych){ this.jsPsych = jsPsych; }
   trial(display_element){
     const last = this.jsPsych.data.get().last(2).values()[0]||{}; 
     const ev=last.events||[]; 
-    function isCorrectKey(ev) {
-      if (ev.w === 25 && ev.key === "f") return true;
-      if (ev.w === 15 && ev.key === "j") return true;
-      return false;
-    }
-    const hits = ev.filter(ev => ev.type === 'hit' && isCorrectKey(ev)).length;
-    const wrongHits = ev.filter(ev => ev.type === 'hit' && !isCorrectKey(ev)).length;
+    // function isCorrectKey(ev) {
+    //   if (ev.w === 25 && ev.key === "f") return true;
+    //   if (ev.w === 15 && ev.key === "j") return true;
+    //   return false;
+    // }
+    const hits = ev.filter(ev => ev.type === 'hit' ).length;
+    //const wrongHits = ev.filter(ev => ev.type === 'hit' && !isCorrectKey(ev)).length;
     const misses=ev.filter(ev=>ev.type==='miss').length; 
     const fas=ev.filter(ev=>ev.type==='false_alarm').length; 
     const rts = ev
-      .filter(ev => ev.type === 'hit' && isCorrectKey(ev))
+      .filter(ev => ev.type === 'hit')
       .map(ev => ev.rt_ms);
     const med = rts.length ? rts.sort((a,b)=>a-b)[Math.floor(rts.length/2)] : null;
     //console.log(this.jsPsych.data.get().last(2).values())
-    display_element.innerHTML = `<div style="color:#e5e7eb;font:16px system-ui;text-align:center;padding:60px 0"><div style="font-size:22px;margin-bottom:10px">Segment Summary</div><div>Correct Hits: <b>${hits}</b> • Wrong Hits: <b>${wrongHits}</b>• Misses: <b>${misses}</b> • False Alarms: <b>${fas}</b></div><div style="opacity:.8;margin-top:6px">Median RT: <b>${med??'—'} ms</b></div></div>`;
+    display_element.innerHTML = `<div style="color:#e5e7eb;font:16px system-ui;text-align:center;padding:60px 0"><div style="font-size:22px;margin-bottom:10px">Segment Summary</div><div>Correct Hits: <b>${hits}</b> • Misses: <b>${misses}</b> • False Alarms: <b>${fas}</b></div><div style="opacity:.8;margin-top:6px">Median RT: <b>${med??'—'} ms</b></div></div>`;
     setTimeout(()=> this.jsPsych.finishTrial({hits,misses,fas,median_rt:med}), 3000);
   }
 }
